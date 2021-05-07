@@ -12,22 +12,24 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 bl_info = {
-    "name" : "Playsthetic",
-    "author" : "Douglas Lassance",
-    "description" : "Integration for common studio operations.",
-    "blender" : (2, 92, 0),
-    "version" : (0, 1, 0),
-    "location" : "View3D",
-    "warning" : "",
-    "category" : "Integration"
+    "name": "Yello",
+    "author": "Douglas Lassance",
+    "description": "Playsthetic integration in Blender.",
+    "blender": (2, 92, 0),
+    "version": (0, 1, 0),
+    "location": "View3D",
+    "warning": "",
+    "category": "Integration",
 }
 
 from . import auto_load
 
 auto_load.init()
 
+
 def register():
     auto_load.register()
+
 
 def unregister():
     auto_load.unregister()
