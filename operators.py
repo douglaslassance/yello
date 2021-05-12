@@ -10,8 +10,8 @@ class CheckOutFileOperator(bpy.types.Operator):
 
     def execute(self, context):
         filename = bpy.data.filepath
-        subprocess.run(['p4', 'edit', filename], cwd=os.path.dirname(filename))
-        return {'FINISHED'}
+        subprocess.run(["p4", "edit", filename], cwd=os.path.dirname(filename))
+        return {"FINISHED"}
 
 
 class ExportStaticMeshOperator(bpy.types.Operator):
@@ -25,14 +25,16 @@ class ExportStaticMeshOperator(bpy.types.Operator):
             if obj.mode == "OBJECT":
                 return True
         return False
-        
+
     def execute(self, context):
-        filename = os.path.splitext(bpy.data.filepath)[0] + '.fbx'
+        filename = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
         bpy.ops.export_scene.fbx(
-            filepath=filename, use_selection=True,
-            object_types={'MESH'}, bake_anim=False
+            filepath=filename,
+            use_selection=True,
+            object_types={"MESH"},
+            bake_anim=False,
         )
-        return {'FINISHED'}
+        return {"FINISHED"}
 
 
 class LockFileOperator(bpy.types.Operator):
@@ -42,8 +44,8 @@ class LockFileOperator(bpy.types.Operator):
 
     def execute(self, context):
         filename = bpy.data.filepath
-        subprocess.run(['git', 'lfs', 'lock', filename], cwd=os.path.dirname(filename))
-        return {'FINISHED'}
+        subprocess.run(["git", "lfs", "lock", filename], cwd=os.path.dirname(filename))
+        return {"FINISHED"}
 
 
 class SimplifyNormalsOperator(bpy.types.Operator):
@@ -69,7 +71,7 @@ class SimplifyNormalsOperator(bpy.types.Operator):
         for pair in pairs:
             # Setting decimated copy.
             bpy.context.view_layer.objects.active = pair[1]
-            bpy.ops.object.modifier_add(type='DECIMATE')
+            bpy.ops.object.modifier_add(type="DECIMATE")
             decimate = pair[1].modifiers[-1]
             decimate.ratio = 0.05
             pair[1].show_bounds = True
@@ -77,13 +79,13 @@ class SimplifyNormalsOperator(bpy.types.Operator):
             # Projecting normals.
             pair[0].data.use_auto_smooth = True
             bpy.context.view_layer.objects.active = pair[0]
-            bpy.ops.object.modifier_add(type='DATA_TRANSFER')
+            bpy.ops.object.modifier_add(type="DATA_TRANSFER")
             data_transfer = pair[0].modifiers[-1]
             data_transfer.object = pair[1]
             data_transfer.use_loop_data = True
             data_transfer.data_types_loops = {"CUSTOM_NORMAL"}
             data_transfer.loop_mapping = "POLYINTERP_NEAREST"
-        return {'FINISHED'}
+        return {"FINISHED"}
 
 
 class SmoothNormalsOperator(bpy.types.Operator):
@@ -100,4 +102,4 @@ class SmoothNormalsOperator(bpy.types.Operator):
 
     def execute(self, context):
         # TODO
-        return {'FINISHED'}
+        return {"FINISHED"}
