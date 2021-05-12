@@ -11,6 +11,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import os
+import bpy
+from bpy.app.handlers import persistent
+from . import functions
+from . import auto_load
+
 bl_info = {
     "name": "Yello",
     "author": "Douglas Lassance",
@@ -18,18 +24,26 @@ bl_info = {
     "blender": (2, 92, 0),
     "version": (0, 1, 0),
     "location": "View3D",
-    "warning": "",
+    "warning": (
+        "To take advantage of all functionalities Git LFS "
+        "should be installed on your system."
+    ),
     "category": "Integration",
 }
-
-from . import auto_load
 
 auto_load.init()
 
 
+@persistent
+def save_pre_handler(*args, **kwargs):
+    functions.lock_file(bpy.data.filepath)
+
+
 def register():
+    bpy.app.handlers.save_pre.append(save_pre_handler)
     auto_load.register()
 
 
 def unregister():
+    bpy.app.handlers.save_pre.remove(save_pre_handler)
     auto_load.unregister()
