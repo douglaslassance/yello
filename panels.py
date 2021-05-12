@@ -12,11 +12,6 @@ class PlaystheticView3dPanel(Panel):
     def draw(self, context):
         layout = self.layout
         row = layout.row()
-        col = row.column()
-        col.operator("object.lock_file")
+        row.operator("object.export_mesh")
         row = layout.row()
-        col = row.column()
-        col.operator("object.export_static_mesh")
-        row = layout.row()
-        col = row.column()
-        col.operator("object.smooth_normals")
+        row.operator("object.smooth_normals")
