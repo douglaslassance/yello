@@ -28,6 +28,7 @@ bl_info = {
         "To take advantage of all functionalities Git LFS "
         "should be installed on your system."
     ),
+    "wiki_url": "https://github.com/playsthetic/yello",
     "category": "Integration",
 }
 
