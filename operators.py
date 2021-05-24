@@ -122,5 +122,59 @@ class ResetNormalsOperator(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class AlignBoneRollsOperator(bpy.types.Operator):
+    bl_idname = "editable_bones.align_bone_rolls"
+    bl_label = "Align bone rolls"
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        if obj is not None:
+            if obj.mode == "EDIT":
+                return True
+        return False
+
+    def execute(self, context):
         # TODO
+        return {"FINISHED"}
+
+
+class DistributeBonesEvenlyOperator(bpy.types.Operator):
+    bl_idname = "editable_bones.distribute_bones_evenly"
+    bl_label = "Distribute bones evenly"
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        if obj is not None:
+            if obj.mode == "EDIT":
+                return True
+        return False
+
+    def execute(self, context):
+        bones = context.editable_bones
+        if not bones or len(bones) < 2:
+            self.report({"ERROR"}, "A minimum of 2 bones should be selected")
+            return {"FINISHED"}
+        bones.reverse()
+        for bone in bones[:-1]:
+            print(bone)
+            parent_index = bones.index(bone) + 1
+            if not bone.parent == bones[parent_index]:
+                self.report({"ERROR"}, "Selected bones need to be connected")
+                return {"FINISHED"}
+        head = bones[-1].head
+        overarching_vector = bones[0].tail - head
+        length = overarching_vector.length
+        normalized = overarching_vector.normalized()
+        bone_count = len(bones)
+        bone_number = 0
+        bones.reverse()
+        for bone in bones[:-1]:
+            bone_number += 1
+            print(head, normalized, length, bone_count, bone_number)
+            bone.tail = head + normalized * length / bone_count * bone_number
+        self.report({"INFO"}, "Distributing bones evenly")
+        for bone in bones:
+            bone.roll = 0
         return {"FINISHED"}

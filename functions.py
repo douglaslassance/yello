@@ -47,3 +47,21 @@ def lock_file(filename):
     if err:
         print(err)
     return process.returncode
+
+
+def is_ancestor_bone(ancestor, descendant):
+    """Returns whether a bone is an ancestor (a remote parent) of another one.
+
+    Args:
+        ancestor ([type]): [description]
+        descendant ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
+    bone = descendant
+    while bone.parent:
+        if bone.parent == ancestor:
+            return True
+        bone = bone.parent
+    return False
