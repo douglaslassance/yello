@@ -1,9 +1,10 @@
 import os
 import subprocess
 import bpy
+import mathutils
 
 from . import functions
-from .contexts import SelectionContext
+from .contexts import SelectionContext, CursorContext
 
 
 class ExportMeshOperator(bpy.types.Operator):
@@ -135,7 +136,37 @@ class AlignBoneRollsOperator(bpy.types.Operator):
         return False
 
     def execute(self, context):
-        # TODO
+        bones = context.editable_bones
+        if not bones or len(bones) < 2:
+            self.report({"ERROR"}, "A minimum of 2 bones should be selected")
+            return {"FINISHED"}
+        bones.reverse()
+        for bone in bones[:-1]:
+            parent_index = bones.index(bone) + 1
+            if not bone.parent == bones[parent_index]:
+                self.report({"ERROR"}, "Selected bones need to be connected")
+                return {"FINISHED"}
+        bones.reverse()
+        first_bone_vector = bones[0].tail - bones[0].head
+        last_bone_vector = bones[-1].head - bones[-1].tail
+        normal = first_bone_vector.cross(last_bone_vector).normalized()
+        intersections = mathutils.geometry.intersect_line_line(
+            bones[0].head,
+            bones[0].head + first_bone_vector * 10,
+            bones[-1].tail,
+            bones[-1].tail + last_bone_vector * 10,
+        )
+        if not intersections:
+            self.report(
+                {"WARNING"},
+                "Could not align bone rolls probably because they form a straight line",
+            )
+            return {"FINISHED"}
+        intersection = intersections[0]
+        with CursorContext():
+            print(intersection, normal)
+            bpy.context.scene.cursor.location = intersection + normal
+            bpy.ops.armature.calculate_roll(type="CURSOR")
         return {"FINISHED"}
 
 
@@ -158,7 +189,6 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
             return {"FINISHED"}
         bones.reverse()
         for bone in bones[:-1]:
-            print(bone)
             parent_index = bones.index(bone) + 1
             if not bone.parent == bones[parent_index]:
                 self.report({"ERROR"}, "Selected bones need to be connected")
@@ -174,7 +204,6 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
             bone_number += 1
             print(head, normalized, length, bone_count, bone_number)
             bone.tail = head + normalized * length / bone_count * bone_number
-        self.report({"INFO"}, "Distributing bones evenly")
         for bone in bones:
             bone.roll = 0
         return {"FINISHED"}
