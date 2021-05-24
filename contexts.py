@@ -15,3 +15,14 @@ class SelectionContext:
         for obj in self.selected:
             obj.select_set(True)
         bpy.context.view_layer.objects.active = self.active
+
+
+class CursorContext:
+    """A context that will restore the original location of the cursor on exit."""
+
+    def __enter__(self, *args, **kwargs):
+        self.location = bpy.context.scene.cursor.location
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        bpy.context.scene.cursor.location = self.location
