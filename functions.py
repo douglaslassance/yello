@@ -35,7 +35,7 @@ def lock_file(filename):
     if not os.path.exists(filename):
         return False
     process = subprocess.Popen(
-        ["git", "lfs", "lock", filename],
+        ["git", "lfs", "lock", ".\\{}".format(os.path.basename(filename))],
         cwd=os.path.dirname(filename),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
