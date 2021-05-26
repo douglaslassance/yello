@@ -8,6 +8,7 @@ from .. import functions
 class ExportMeshOperator(bpy.types.Operator):
     bl_idname = "object.export_mesh"
     bl_label = "Export mesh"
+    bl_description = "Export static mesh and armature as FBX."
 
     @classmethod
     def poll(cls, context):
@@ -34,6 +35,7 @@ class ExportMeshOperator(bpy.types.Operator):
 class ExportAnimationOperator(bpy.types.Operator):
     bl_idname = "object.export_animation"
     bl_label = "Export animation"
+    bl_description = "Export mesh only as an alembic."
 
     @classmethod
     def poll(cls, context):
@@ -61,6 +63,7 @@ class ExportAnimationOperator(bpy.types.Operator):
 class ExportAnimatedMeshOperator(bpy.types.Operator):
     bl_idname = "object.export_animated_mesh"
     bl_label = "Export animated mesh"
+    bl_description = "Export armature only as FBX."
 
     @classmethod
     def poll(cls, context):

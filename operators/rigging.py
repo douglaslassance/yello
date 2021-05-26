@@ -8,6 +8,7 @@ from ..contexts import CursorContext
 class AlignBoneRollsOperator(bpy.types.Operator):
     bl_idname = "editable_bones.align_bone_rolls"
     bl_label = "Align bone rolls"
+    bl_description = "Align bone rolls to the plane formed by the angle between bones."
 
     @classmethod
     def poll(cls, context):
@@ -54,6 +55,7 @@ class AlignBoneRollsOperator(bpy.types.Operator):
 class DistributeBonesEvenlyOperator(bpy.types.Operator):
     bl_idname = "editable_bones.distribute_bones_evenly"
     bl_label = "Distribute bones evenly"
+    bl_description = "Straighen a chain and distribute bone length evenly."
 
     @classmethod
     def poll(cls, context):
@@ -92,6 +94,7 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
 class AlignBonesOperator(bpy.types.Operator):
     bl_idname = "editable_bones.align_bones"
     bl_label = "Align bones"
+    bl_description = "Align bones to the plane formed by the angle between the first and last bone of a chain."
 
     @classmethod
     def poll(cls, context):
@@ -129,6 +132,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
 
     bl_idname = "editable_bones.generate_twist_bones"
     bl_label = "Generate twist bones"
+    bl_description = "Generate twist bone chains parented to the selected bones."
 
     count = bpy.props.IntProperty(name="Count", default=3)
 
