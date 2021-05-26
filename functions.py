@@ -1,4 +1,5 @@
 import os
+import logging
 import subprocess
 import bpy
 
@@ -43,9 +44,9 @@ def lock_file(filename):
     )
     output, err = process.communicate()
     if output:
-        print(output)
+        logging.warning(output)
     if err:
-        print(err)
+        logging.error(err)
     return process.returncode
 
 
