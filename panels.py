@@ -12,6 +12,8 @@ class PlaystheticIOView3dPanel(Panel):
     def draw(self, context):
         layout = self.layout
         row = layout.row()
+        row.operator("object.lock_file")
+        row = layout.row()
         row.operator("object.export_mesh")
 
 
@@ -38,6 +40,8 @@ class PlaystheticRiggingView3dPanel(Panel):
     def draw(self, context):
         layout = self.layout
         row = layout.row()
-        row.operator("editable_bones.align_bone_rolls")
-        row = layout.row()
         row.operator("editable_bones.distribute_bones_evenly")
+        row = layout.row()
+        row.operator("editable_bones.align_bones")
+        row = layout.row()
+        row.operator("editable_bones.align_bone_rolls")
