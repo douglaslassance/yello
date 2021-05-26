@@ -122,3 +122,53 @@ class AlignBonesOperator(bpy.types.Operator):
             projected_vector = functions.get_projected_vector(bone_vector, normal)
             bone.tail = projected_vector + bone.head
         return {"FINISHED"}
+
+
+class GenerateTwistBonesOperator(bpy.types.Operator):
+    _count_key = "yello_generate_twist_bones_count"
+
+    bl_idname = "editable_bones.generate_twist_bones"
+    bl_label = "Generate twist bones"
+
+    count = bpy.props.IntProperty(name="Count", default=3)
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        if obj is not None:
+            if obj.mode == "EDIT":
+                return True
+        return False
+
+    def invoke(self, context, event):
+        bones = context.editable_bones
+        if not bones:
+            self.report({"ERROR"}, "At least one bone should be selected")
+            return {"FINISHED"}
+        if self._count_key in bpy.context.scene.world:
+            self.iterations = bpy.context.scene.world[self._count_key]
+        return context.window_manager.invoke_props_dialog(self)
+
+    def execute(self, context):
+        bones = context.editable_bones
+        for bone in bones:
+            length = bone.length / float(self.count + 1)
+            direction = (bone.tail - bone.head).normalized()
+            previous = bone
+            edit_bones = context.object.data.edit_bones
+            for i in range(self.count):
+                number = i + 1
+                splits = bone.name.split(".")
+                name = ".".join(splits[:-1] + ["{:03d}".format(number), splits[-1]])
+                twist = edit_bones.new(name)
+                twist.head = bone.head + direction * length * number
+                twist.tail = twist.head + direction * length
+                # TODO: calculate the roll interpolation been the root bone and next.
+                # For now we are matching the parent on all twists bones.
+                twist.roll = bone.roll
+                twist.parent = previous
+                if twist.head == previous.tail:
+                    twist.use_connect = True
+                previous = twist
+        bpy.context.scene.world[self._count_key] = self.count
+        return {"FINISHED"}
