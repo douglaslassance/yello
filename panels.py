@@ -51,3 +51,5 @@ class PlaystheticRiggingView3dPanel(Panel):
         row.operator("editable_bones.align_bone_rolls")
         row = layout.row()
         row.operator("editable_bones.generate_twist_bones")
+        row = layout.row()
+        row.operator("editable_bones.generate_ease_bone")

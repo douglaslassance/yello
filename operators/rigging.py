@@ -163,7 +163,9 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
             for i in range(self.count):
                 number = i + 1
                 splits = bone.name.split(".")
-                name = ".".join(splits[:-1] + ["{:03d}".format(number), splits[-1]])
+                name = ".".join(
+                    splits[:-1] + ["Twist.{:03d}".format(number), splits[-1]]
+                )
                 twist = edit_bones.new(name)
                 twist.head = bone.head + direction * length * number
                 twist.tail = twist.head + direction * length
@@ -175,4 +177,48 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
                     twist.use_connect = True
                 previous = twist
         bpy.context.scene.world[self._count_key] = self.count
+        return {"FINISHED"}
+
+
+class GenerateEaseBoneOperator(bpy.types.Operator):
+    bl_idname = "editable_bones.generate_ease_bone"
+    bl_label = "Generate ease bone"
+    bl_description = (
+        "Generate intermediary bone rotated halfway between two selected bones."
+    )
+
+    def execute(self, context):
+        bones = context.editable_bones
+        if not bones or len(bones) < 2:
+            self.report({"ERROR"}, "A minimum of 2 bones should be selected")
+            return {"FINISHED"}
+        bones.reverse()
+        for bone in bones[:-1]:
+            parent_index = bones.index(bone) + 1
+            if not bone.parent == bones[parent_index]:
+                self.report({"ERROR"}, "Selected bones need to be connected")
+                return {"FINISHED"}
+        bones.reverse()
+        splits = bone.name.split(".")
+        edit_bones = context.object.data.edit_bones
+        ease = edit_bones.new(".".join(splits[:-1] + ["Ease", splits[-1]]))
+        ease.head = bones[0].tail
+        parent_bone_vector = bones[0].head - bones[0].tail
+        child_bone_vector = bones[-1].tail - bones[-1].head
+        if bones[0].length <= bones[-1].length:
+            tail = (parent_bone_vector) + (child_bone_vector).normalized() * bones[
+                0
+            ].length
+        else:
+            tail = (child_bone_vector) + (parent_bone_vector).normalized() * bones[
+                -1
+            ].length
+        ease.tail = tail.normalized() * 0.05 + ease.head
+        ease.parent = bones[0]
+        # TODO: There is still some imperfection with this roll calculation.
+        normal = parent_bone_vector.cross(child_bone_vector)
+        with CursorContext():
+            bpy.context.scene.cursor.location = normal + ease.head
+            bpy.context.object.data.edit_bones.active = ease
+            bpy.ops.armature.calculate_roll(type="CURSOR")
         return {"FINISHED"}
