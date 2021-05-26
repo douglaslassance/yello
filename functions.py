@@ -2,6 +2,7 @@ import os
 import logging
 import subprocess
 import bpy
+import mathutils
 
 
 def create_collection(name="Collection", find_existing=True):
@@ -66,3 +67,13 @@ def is_ancestor_bone(ancestor, descendant):
             return True
         bone = bone.parent
     return False
+
+
+def get_projected_vector(vector: mathutils.Vector, normal: mathutils.Vector):
+    """[summary]
+
+    Args:
+        vector (mathutils.Vector): The vector to project.
+        normal (mathutils.Vector): The normal of the plane to project onto. Expects a normalized vector.
+    """
+    return vector - normal * vector.dot(normal)
