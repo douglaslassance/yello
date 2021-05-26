@@ -9,6 +9,9 @@ class SmoothNormalsOperator(bpy.types.Operator):
 
     bl_idname = "object.smooth_normals"
     bl_label = "Smooth normals"
+    bl_description = (
+        "Generate normals by projecting them from a smoothed version of the model."
+    )
 
     iterations = bpy.props.FloatProperty(name="Repeat", default=8)
 
@@ -62,6 +65,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
 class ResetNormalsOperator(bpy.types.Operator):
     bl_idname = "object.reset_normals"
     bl_label = "Reset normals"
+    bl_description = "Remove projected normal from model."
 
     @classmethod
     def poll(cls, context):
