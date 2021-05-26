@@ -15,6 +15,10 @@ class PlaystheticIOView3dPanel(Panel):
         row.operator("object.lock_file")
         row = layout.row()
         row.operator("object.export_mesh")
+        row = layout.row()
+        row.operator("object.export_animation")
+        row = layout.row()
+        row.operator("object.export_animated_mesh")
 
 
 class PlaystheticShadingView3dPanel(Panel):
