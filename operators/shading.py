@@ -5,7 +5,7 @@ from ..contexts import SelectionContext
 
 
 class SmoothNormalsOperator(bpy.types.Operator):
-    _ratio_key = "normal_smooth_iterations"
+    _ratio_key = "yello_smooth_normal_iterations"
 
     bl_idname = "object.smooth_normals"
     bl_label = "Smooth normals"
