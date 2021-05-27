@@ -94,6 +94,5 @@ class LockFileOperator(bpy.types.Operator):
     bl_description = "Perform a Git lock on the current file."
 
     def execute(self, context):
-        filename = bpy.data.filepath
-        subprocess.run(["git", "lfs", "lock", filename], cwd=os.path.dirname(filename))
+        functions.lock_file(bpy.data.filepath)
         return {"FINISHED"}
