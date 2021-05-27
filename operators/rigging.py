@@ -202,7 +202,7 @@ class GenerateEaseBoneOperator(bpy.types.Operator):
         splits = bone.name.split(".")
         edit_bones = context.object.data.edit_bones
         ease = edit_bones.new(".".join(splits[:-1] + ["Ease", splits[-1]]))
-        ease.head = bones[0].tail
+        ease.head = bones[-1].head
         parent_bone_vector = bones[0].head - bones[0].tail
         child_bone_vector = bones[-1].tail - bones[-1].head
         if bones[0].length <= bones[-1].length:
@@ -217,6 +217,7 @@ class GenerateEaseBoneOperator(bpy.types.Operator):
         ease.parent = bones[0]
         # TODO: There is still some imperfection with this roll calculation.
         normal = parent_bone_vector.cross(child_bone_vector)
+        bpy.ops.armature.select_all(action="DESELECT")
         with CursorContext():
             bpy.context.scene.cursor.location = normal + ease.head
             bpy.context.object.data.edit_bones.active = ease
