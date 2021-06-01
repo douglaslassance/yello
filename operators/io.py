@@ -96,3 +96,12 @@ class LockFileOperator(bpy.types.Operator):
     def execute(self, context):
         functions.lock_file(bpy.data.filepath)
         return {"FINISHED"}
+
+
+class OpenContainingFolderOperator(bpy.types.Operator):
+    bl_idname = "object.open_containing_folder"
+    bl_label = "Open containing folder"
+
+    def execute(self, context):
+        subprocess.Popen(["explorer", "/select,", bpy.data.filepath])
+        return {"FINISHED"}
