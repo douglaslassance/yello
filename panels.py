@@ -11,16 +11,12 @@ class PlaystheticIOView3dPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        row = layout.row()
-        row.operator("object.lock_file", icon="LOCKED")
-        row = layout.row()
-        row.operator("object.open_containing_folder", icon="FILE_FOLDER")
-        row = layout.row()
-        row.operator("object.export_mesh", icon="MESH_MONKEY")
-        row = layout.row()
-        row.operator("object.export_animation", icon="ONIONSKIN_ON")
-        row = layout.row()
-        row.operator("object.export_animated_mesh", icon="MOD_SOFT")
+        col = layout.column(align=True)
+        col.operator("object.lock_file", icon="LOCKED")
+        col.operator("object.open_containing_folder", icon="FILE_FOLDER")
+        col.operator("object.export_mesh", icon="MESH_MONKEY")
+        col.operator("object.export_animation", icon="ONIONSKIN_ON")
+        col.operator("object.export_animated_mesh", icon="MOD_SOFT")
 
 
 class PlaystheticShadingView3dPanel(Panel):
@@ -31,10 +27,9 @@ class PlaystheticShadingView3dPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        row = layout.row()
-        row.operator("object.smooth_normals", icon="MOD_SMOOTH")
-        row = layout.row()
-        row.operator("object.reset_normals", icon="X")
+        col = layout.column(align=True)
+        col.operator("object.smooth_normals", icon="MOD_SMOOTH")
+        col.operator("object.reset_normals", icon="X")
 
 
 class PlaystheticRiggingView3dPanel(Panel):
@@ -45,13 +40,9 @@ class PlaystheticRiggingView3dPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        row = layout.row()
-        row.operator("editable_bones.distribute_bones_evenly", icon="CURVE_PATH")
-        row = layout.row()
-        row.operator("editable_bones.align_bones", icon="CON_TRACKTO")
-        row = layout.row()
-        row.operator("editable_bones.align_bone_rolls", icon="ORIENTATION_GIMBAL")
-        row = layout.row()
-        row.operator("editable_bones.generate_twist_bones", icon="FORCE_MAGNETIC")
-        row = layout.row()
-        row.operator("editable_bones.generate_ease_bone", icon="ORIENTATION_GLOBAL")
+        col = layout.column(align=True)
+        col.operator("editable_bones.distribute_bones_evenly", icon="CURVE_PATH")
+        col.operator("editable_bones.align_bones", icon="CON_TRACKTO")
+        col.operator("editable_bones.align_bone_rolls", icon="ORIENTATION_GIMBAL")
+        col.operator("editable_bones.generate_twist_bones", icon="FORCE_MAGNETIC")
+        col.operator("editable_bones.generate_ease_bone", icon="ORIENTATION_GLOBAL")
