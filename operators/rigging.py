@@ -156,26 +156,31 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
     def execute(self, context):
         bones = context.editable_bones
         for bone in bones:
-            length = bone.length / float(self.count + 1)
+            length = bone.length / float(self.count)
             direction = (bone.tail - bone.head).normalized()
             previous = bone
             edit_bones = context.object.data.edit_bones
-            for i in range(self.count):
-                number = i + 1
+            for number in range(self.count):
                 splits = bone.name.split(".")
                 name = ".".join(
-                    splits[:-1] + ["Twist.{:03d}".format(number), splits[-1]]
+                    splits[:-1] + ["Twist.{:03d}".format(number + 1), splits[-1]]
                 )
-                twist = edit_bones.new(name)
-                twist.head = bone.head + direction * length * number
-                twist.tail = twist.head + direction * length
+                new_bone = edit_bones.new(name)
+                new_bone.envelope_weight = bone.envelope_weight
+                new_bone.envelope_distance = bone.envelope_distance
+                new_bone.head_radius = bones.head_radius * 1.25
+                new_bone.tail_radius = bones.tail_radius * 1.24
+                new_bone.hide = True
+                new_bone.head = bone.head + direction * length * number
+                new_bone.tail = new_bone.head + direction * length
                 # TODO: calculate the roll interpolation been the root bone and next.
                 # For now we are matching the parent on all twists bones.
-                twist.roll = bone.roll
-                twist.parent = previous
-                if twist.head == previous.tail:
-                    twist.use_connect = True
-                previous = twist
+                new_bone.roll = bone.roll
+                new_bone.parent = previous
+                if new_bone.head == previous.tail:
+                    new_bone.use_connect = True
+                previous = new_bone
+            bone.use_deform = False
         bpy.context.scene.world[self._count_key] = self.count
         return {"FINISHED"}
 
@@ -201,8 +206,13 @@ class GenerateEaseBoneOperator(bpy.types.Operator):
         bones.reverse()
         splits = bone.name.split(".")
         edit_bones = context.object.data.edit_bones
-        ease = edit_bones.new(".".join(splits[:-1] + ["Ease", splits[-1]]))
-        ease.head = bones[-1].head
+        new_bone = edit_bones.new(".".join(splits[:-1] + ["Ease", splits[-1]]))
+        new_bone.envelope_weight = bones[-1].envelope_weight
+        new_bone.envelope_distance = bones[-1].envelope_distanc
+        new_bone.head_radius = bones[-1].head_radius
+        new_bone.tail_radius = bones[-1].tail_radius
+        new_bone.hide = True
+        new_bone.head = bones[-1].head
         parent_bone_vector = bones[0].head - bones[0].tail
         child_bone_vector = bones[-1].tail - bones[-1].head
         if bones[0].length <= bones[-1].length:
@@ -213,13 +223,13 @@ class GenerateEaseBoneOperator(bpy.types.Operator):
             tail = (child_bone_vector) + (parent_bone_vector).normalized() * bones[
                 -1
             ].length
-        ease.tail = tail.normalized() * 0.05 + ease.head
-        ease.parent = bones[0]
+        new_bone.tail = tail.normalized() * 0.05 + new_bone.head
+        new_bone.parent = bones[0]
         # TODO: There is still some imperfection with this roll calculation.
         normal = parent_bone_vector.cross(child_bone_vector)
         bpy.ops.armature.select_all(action="DESELECT")
         with CursorContext():
-            bpy.context.scene.cursor.location = normal + ease.head
-            bpy.context.object.data.edit_bones.active = ease
+            bpy.context.scene.cursor.location = normal + new_bone.head
+            bpy.context.object.data.edit_bones.active = new_bone
             bpy.ops.armature.calculate_roll(type="CURSOR")
         return {"FINISHED"}
