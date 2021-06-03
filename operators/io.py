@@ -12,10 +12,11 @@ class ExportMeshOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        obj = context.object
-        if obj is not None:
-            if obj.mode == "OBJECT":
-                return True
+        if bpy.data.filepath:
+            obj = context.object
+            if obj is not None:
+                if obj.mode == "OBJECT":
+                    return True
         return False
 
     def execute(self, context):
@@ -39,10 +40,11 @@ class ExportAnimationOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        obj = context.object
-        if obj is not None:
-            if obj.mode == "OBJECT":
-                return True
+        if bpy.data.filepath:
+            obj = context.object
+            if obj is not None:
+                if obj.mode == "OBJECT":
+                    return True
         return False
 
     def execute(self, context):
@@ -67,10 +69,11 @@ class ExportAnimatedMeshOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        obj = context.object
-        if obj is not None:
-            if obj.mode == "OBJECT":
-                return True
+        if bpy.data.filepath:
+            obj = context.object
+            if obj is not None:
+                if obj.mode == "OBJECT":
+                    return True
         return False
 
     def execute(self, context):
@@ -93,6 +96,10 @@ class LockFileOperator(bpy.types.Operator):
     bl_label = "Lock file"
     bl_description = "Perform a Git lock on the current file."
 
+    @classmethod
+    def poll(cls, context):
+        return bool(bpy.data.filepath)
+
     def execute(self, context):
         functions.lock_file(bpy.data.filepath)
         return {"FINISHED"}
@@ -101,6 +108,10 @@ class LockFileOperator(bpy.types.Operator):
 class OpenContainingFolderOperator(bpy.types.Operator):
     bl_idname = "object.open_containing_folder"
     bl_label = "Open containing folder"
+
+    @classmethod
+    def poll(cls, context):
+        return bool(bpy.data.filepath)
 
     def execute(self, context):
         subprocess.Popen(["explorer", "/select,", bpy.data.filepath])
