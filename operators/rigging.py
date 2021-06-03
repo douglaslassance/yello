@@ -192,6 +192,14 @@ class GenerateEaseBoneOperator(bpy.types.Operator):
         "Generate intermediary bone rotated halfway between two selected bones."
     )
 
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        if obj is not None:
+            if obj.mode == "EDIT":
+                return True
+        return False
+
     def execute(self, context):
         bones = context.editable_bones
         if not bones or len(bones) < 2:
