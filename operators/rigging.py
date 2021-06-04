@@ -185,9 +185,9 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class GenerateEaseBoneOperator(bpy.types.Operator):
-    bl_idname = "editable_bones.generate_ease_bone"
-    bl_label = "Generate ease bone"
+class GenerateBlendBoneOperator(bpy.types.Operator):
+    bl_idname = "editable_bones.generate_blend_bone"
+    bl_label = "Generate blend bone"
     bl_description = (
         "Generate intermediary bone rotated halfway between two selected bones."
     )
@@ -214,7 +214,7 @@ class GenerateEaseBoneOperator(bpy.types.Operator):
         bones.reverse()
         splits = bone.name.split(".")
         edit_bones = context.object.data.edit_bones
-        new_bone = edit_bones.new(".".join(splits[:-1] + ["Ease", splits[-1]]))
+        new_bone = edit_bones.new(".".join(splits[:-1] + ["Blend", splits[-1]]))
         new_bone.envelope_weight = bones[-1].envelope_weight
         new_bone.envelope_distance = bones[-1].envelope_distanc
         new_bone.head_radius = bones[-1].head_radius
