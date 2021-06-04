@@ -45,4 +45,4 @@ class PlaystheticRiggingView3dPanel(Panel):
         col.operator("editable_bones.align_bones", icon="CON_TRACKTO")
         col.operator("editable_bones.align_bone_rolls", icon="ORIENTATION_GIMBAL")
         col.operator("editable_bones.generate_twist_bones", icon="FORCE_MAGNETIC")
-        col.operator("editable_bones.generate_ease_bone", icon="ORIENTATION_GLOBAL")
+        col.operator("editable_bones.generate_blend_bone", icon="ORIENTATION_GLOBAL")
