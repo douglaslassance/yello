@@ -150,7 +150,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
             self.report({"ERROR"}, "At least one bone should be selected")
             return {"FINISHED"}
         if self._count_key in bpy.context.scene.world:
-            self.iterations = bpy.context.scene.world[self._count_key]
+            self.count = bpy.context.scene.world[self._count_key]
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context):
@@ -160,6 +160,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
             direction = (bone.tail - bone.head).normalized()
             previous = bone
             edit_bones = context.object.data.edit_bones
+            createds = []
             for number in range(self.count):
                 splits = bone.name.split(".")
                 name = ".".join(
@@ -168,9 +169,8 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
                 new_bone = edit_bones.new(name)
                 new_bone.envelope_weight = bone.envelope_weight
                 new_bone.envelope_distance = bone.envelope_distance
-                new_bone.head_radius = bones.head_radius * 1.25
-                new_bone.tail_radius = bones.tail_radius * 1.24
-                new_bone.hide = True
+                new_bone.head_radius = bone.head_radius * 1.25
+                new_bone.tail_radius = bone.tail_radius * 1.24
                 new_bone.head = bone.head + direction * length * number
                 new_bone.tail = new_bone.head + direction * length
                 # TODO: calculate the roll interpolation been the root bone and next.
@@ -179,8 +179,13 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
                 new_bone.parent = previous
                 if new_bone.head == previous.tail:
                     new_bone.use_connect = True
+                createds.append(new_bone.name)
                 previous = new_bone
             bone.use_deform = False
+        bpy.ops.object.mode_set(mode="POSE")
+        for created in createds:
+            bpy.context.object.pose.bones[created].bone.hide = True
+        bpy.ops.object.mode_set(mode="EDIT")
         bpy.context.scene.world[self._count_key] = self.count
         return {"FINISHED"}
 
