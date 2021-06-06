@@ -13,7 +13,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
         "Generate normals by projecting them from a smoothed version of the model."
     )
 
-    iterations = bpy.props.FloatProperty(name="Repeat", default=8)
+    iterations: bpy.props.FloatProperty(name="Repeat", default=8)
 
     @classmethod
     def poll(cls, context):
