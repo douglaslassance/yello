@@ -21,7 +21,7 @@ bl_info = {
     "name": "Yello",
     "author": "Douglas Lassance",
     "description": "Playsthetic integration in Blender.",
-    "blender": (2, 92, 0),
+    "blender": (2, 93, 0),
     "version": (0, 1, 0),
     "location": "View3D",
     "warning": (

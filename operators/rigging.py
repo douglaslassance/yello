@@ -134,7 +134,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
     bl_label = "Generate twist bones"
     bl_description = "Generate twist bone chains parented to the selected bones."
 
-    count = bpy.props.IntProperty(name="Count", default=3)
+    count: bpy.props.IntProperty(name="Count", default=3)
 
     @classmethod
     def poll(cls, context):
