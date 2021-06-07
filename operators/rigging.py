@@ -6,7 +6,7 @@ from ..contexts import CursorContext
 
 
 class AlignBoneRollsOperator(bpy.types.Operator):
-    bl_idname = "editable_bones.align_bone_rolls"
+    bl_idname = "armature.align_bone_rolls"
     bl_label = "Align bone rolls"
     bl_description = "Align bone rolls to the plane formed by the angle between bones."
 
@@ -53,7 +53,7 @@ class AlignBoneRollsOperator(bpy.types.Operator):
 
 
 class DistributeBonesEvenlyOperator(bpy.types.Operator):
-    bl_idname = "editable_bones.distribute_bones_evenly"
+    bl_idname = "armature.distribute_bones_evenly"
     bl_label = "Distribute bones evenly"
     bl_description = "Straighen a chain and distribute bone length evenly."
 
@@ -92,7 +92,7 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
 
 
 class AlignBonesOperator(bpy.types.Operator):
-    bl_idname = "editable_bones.align_bones"
+    bl_idname = "armature.align_bones"
     bl_label = "Align bones"
     bl_description = "Align bones to the plane formed by the angle between the first and last bone of a chain."
 
@@ -130,7 +130,7 @@ class AlignBonesOperator(bpy.types.Operator):
 class GenerateTwistBonesOperator(bpy.types.Operator):
     _count_key = "yello_generate_twist_bones_count"
 
-    bl_idname = "editable_bones.generate_twist_bones"
+    bl_idname = "armature.generate_twist_bones"
     bl_label = "Generate twist bones"
     bl_description = "Generate twist bone chains parented to the selected bones."
 
@@ -191,7 +191,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
 
 
 class GenerateBlendBoneOperator(bpy.types.Operator):
-    bl_idname = "editable_bones.generate_blend_bone"
+    bl_idname = "armature.generate_blend_bone"
     bl_label = "Generate blend bone"
     bl_description = (
         "Generate intermediary bone rotated halfway between two selected bones."
@@ -245,4 +245,34 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
             bpy.context.scene.cursor.location = normal + new_bone.head
             bpy.context.object.data.edit_bones.active = new_bone
             bpy.ops.armature.calculate_roll(type="CURSOR")
+        return {"FINISHED"}
+
+
+class CreateBoneAlignedObjectOperator(bpy.types.Operator):
+    bl_idname = "pose.create_bone_aligned_object"
+    bl_label = "Create bone aligned object"
+    bl_description = "Creates an empty object aligned to the active bone in pose mode."
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        if obj is not None:
+            if obj.mode == "POSE":
+                return True
+        return False
+
+    def execute(self, context):
+        pose_bone = context.active_pose_bone
+        if not pose_bone:
+            self.report({"ERROR"}, "One bone should be selected and active.")
+            return {"FINISHED"}
+        bone = pose_bone.id_data
+        matrix_final = bone.matrix_world @ pose_bone.matrix
+        obj = bpy.data.objects.new("Test", None)
+        collection = functions.create_collection("Bone Aligned")
+        collection.objects.link(obj)
+        obj.name = bone.name
+        obj.matrix_world = matrix_final
+        obj.empty_display_size = 0.25
+        obj.empty_display_type = "ARROWS"
         return {"FINISHED"}
