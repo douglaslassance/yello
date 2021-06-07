@@ -24,11 +24,18 @@ class ExportMeshOperator(bpy.types.Operator):
         functions.lock_file(filename)
         bpy.ops.export_scene.fbx(
             add_leaf_bones=False,
+            apply_scale_options="FBX_SCALE_NONE",
+            apply_unit_scale=True,
+            axis_forward="-Z",
+            axis_up="Y",
             bake_anim=False,
+            bake_space_transform=False,
             filepath=filename,
+            global_scale=1.0,
             mesh_smooth_type="FACE",
             object_types={"MESH", "ARMATURE"},
             use_selection=True,
+            use_space_transform=True,
         )
         return {"FINISHED"}
 
@@ -52,12 +59,18 @@ class ExportAnimationOperator(bpy.types.Operator):
         functions.lock_file(filename)
         bpy.ops.export_scene.fbx(
             add_leaf_bones=False,
-            bake_anim_use_all_actions=False,
-            bake_anim_use_nla_strips=False,
+            apply_scale_options="FBX_SCALE_NONE",
+            apply_unit_scale=True,
+            axis_forward="-Z",
+            axis_up="Y",
             bake_anim=True,
+            bake_space_transform=False,
             filepath=filename,
+            global_scale=1.0,
+            mesh_smooth_type="FACE",
             object_types={"ARMATURE"},
             use_selection=True,
+            use_space_transform=True,
         )
         return {"FINISHED"}
 
