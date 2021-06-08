@@ -31,6 +31,7 @@ class PlaystheticRiggingView3dPanel(Panel):
         col.operator("armature.distribute_bones_evenly", icon="CURVE_PATH")
         col.operator("armature.align_bones", icon="CON_TRACKTO")
         col.operator("armature.align_bone_rolls", icon="ORIENTATION_GIMBAL")
+        col.operator("armature.normalize_bone_roll", icon="TRACKING_CLEAR_BACKWARDS")
         col.operator("armature.generate_twist_bones", icon="FORCE_MAGNETIC")
         col.operator("armature.generate_blend_bone", icon="ORIENTATION_GLOBAL")
 
