@@ -1,4 +1,5 @@
 import bpy
+import math
 import mathutils
 
 from .. import functions
@@ -52,6 +53,72 @@ class AlignBoneRollsOperator(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class AlignBonesOperator(bpy.types.Operator):
+    bl_idname = "armature.align_bones"
+    bl_label = "Align bones"
+    bl_description = "Align bones to the plane formed by the angle between the first and last bone of a chain."
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        if obj is not None:
+            if obj.mode == "EDIT":
+                return True
+        return False
+
+    def execute(self, context):
+        bones = context.editable_bones
+        if not bones or len(bones) < 2:
+            self.report({"ERROR"}, "A minimum of 2 bones should be selected")
+            return {"FINISHED"}
+        bones.reverse()
+        for bone in bones[:-1]:
+            parent_index = bones.index(bone) + 1
+            if not bone.parent == bones[parent_index]:
+                self.report({"ERROR"}, "Selected bones need to be connected")
+                return {"FINISHED"}
+        bones.reverse()
+        start = bones[0].head
+        mid = bones[0].tail
+        end = bones[-1].tail
+        normal = (mid - start).cross(end - mid).normalized()
+        for bone in bones[1:-1]:
+            bone_vector = bone.tail - bone.head
+            projected_vector = functions.get_projected_vector(bone_vector, normal)
+            bone.tail = projected_vector + bone.head
+        return {"FINISHED"}
+
+
+class CreateBoneAlignedObjectOperator(bpy.types.Operator):
+    bl_idname = "pose.create_bone_aligned_object"
+    bl_label = "Create bone aligned object"
+    bl_description = "Creates an empty object aligned to the active bone in pose mode."
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        if obj is not None:
+            if obj.mode == "POSE":
+                return True
+        return False
+
+    def execute(self, context):
+        pose_bone = context.active_pose_bone
+        if not pose_bone:
+            self.report({"ERROR"}, "One bone should be selected and active.")
+            return {"FINISHED"}
+        bone = pose_bone.id_data
+        matrix_final = bone.matrix_world @ pose_bone.matrix
+        obj = bpy.data.objects.new("Test", None)
+        collection = functions.create_collection("Bone Aligned")
+        collection.objects.link(obj)
+        obj.name = bone.name
+        obj.matrix_world = matrix_final
+        obj.empty_display_size = 0.25
+        obj.empty_display_type = "ARROWS"
+        return {"FINISHED"}
+
+
 class DistributeBonesEvenlyOperator(bpy.types.Operator):
     bl_idname = "armature.distribute_bones_evenly"
     bl_label = "Distribute bones evenly"
@@ -88,42 +155,6 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
             bone.tail = head + normalized * length / bone_count * bone_number
         for bone in bones:
             bone.roll = 0
-        return {"FINISHED"}
-
-
-class AlignBonesOperator(bpy.types.Operator):
-    bl_idname = "armature.align_bones"
-    bl_label = "Align bones"
-    bl_description = "Align bones to the plane formed by the angle between the first and last bone of a chain."
-
-    @classmethod
-    def poll(cls, context):
-        obj = context.object
-        if obj is not None:
-            if obj.mode == "EDIT":
-                return True
-        return False
-
-    def execute(self, context):
-        bones = context.editable_bones
-        if not bones or len(bones) < 2:
-            self.report({"ERROR"}, "A minimum of 2 bones should be selected")
-            return {"FINISHED"}
-        bones.reverse()
-        for bone in bones[:-1]:
-            parent_index = bones.index(bone) + 1
-            if not bone.parent == bones[parent_index]:
-                self.report({"ERROR"}, "Selected bones need to be connected")
-                return {"FINISHED"}
-        bones.reverse()
-        start = bones[0].head
-        mid = bones[0].tail
-        end = bones[-1].tail
-        normal = (mid - start).cross(end - mid).normalized()
-        for bone in bones[1:-1]:
-            bone_vector = bone.tail - bone.head
-            projected_vector = functions.get_projected_vector(bone_vector, normal)
-            bone.tail = projected_vector + bone.head
         return {"FINISHED"}
 
 
@@ -217,7 +248,7 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
                 self.report({"ERROR"}, "Selected bones need to be connected")
                 return {"FINISHED"}
         bones.reverse()
-        splits = bone.name.split(".")
+        splits = bones[-1].name.split(".")
         edit_bones = context.object.data.edit_bones
         new_bone = edit_bones.new(".".join(splits[:-1] + ["Blend", splits[-1]]))
         new_bone.envelope_weight = bones[-1].envelope_weight
@@ -248,31 +279,32 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class CreateBoneAlignedObjectOperator(bpy.types.Operator):
-    bl_idname = "pose.create_bone_aligned_object"
-    bl_label = "Create bone aligned object"
-    bl_description = "Creates an empty object aligned to the active bone in pose mode."
+class NormalizeBoneRollOperator(bpy.types.Operator):
+    bl_idname = "armature.normalize_bone_roll"
+    bl_label = "Normalize bone roll"
+    bl_description = "Set the roll closest to zero."
 
     @classmethod
     def poll(cls, context):
         obj = context.object
         if obj is not None:
-            if obj.mode == "POSE":
+            if obj.mode == "EDIT":
                 return True
         return False
 
     def execute(self, context):
-        pose_bone = context.active_pose_bone
-        if not pose_bone:
-            self.report({"ERROR"}, "One bone should be selected and active.")
-            return {"FINISHED"}
-        bone = pose_bone.id_data
-        matrix_final = bone.matrix_world @ pose_bone.matrix
-        obj = bpy.data.objects.new("Test", None)
-        collection = functions.create_collection("Bone Aligned")
-        collection.objects.link(obj)
-        obj.name = bone.name
-        obj.matrix_world = matrix_final
-        obj.empty_display_size = 0.25
-        obj.empty_display_type = "ARROWS"
+        bones = context.editable_bones
+        for bone in bones:
+            roll = bone.roll
+            if roll == 0:
+                continue
+            closest = False
+            sign = 1 if roll < 0 else -1
+            while not closest:
+                new_roll = roll + math.pi / 2.0 * sign
+                if abs(roll) < abs(new_roll):
+                    closest = True
+                else:
+                    roll = new_roll
+            bone.roll = roll
         return {"FINISHED"}
