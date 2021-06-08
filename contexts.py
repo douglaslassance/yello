@@ -1,3 +1,4 @@
+import copy
 import contextlib
 import bpy
 
@@ -21,7 +22,7 @@ class CursorContext:
     """A context that will restore the original location of the cursor on exit."""
 
     def __enter__(self, *args, **kwargs):
-        self.location = bpy.context.scene.cursor.location
+        self.location = copy.copy(bpy.context.scene.cursor.location)
         return self
 
     def __exit__(self, *args, **kwargs):
