@@ -3,7 +3,7 @@ import math
 import mathutils
 
 from .. import functions
-from ..contexts import CursorContext
+from ..contexts import CursorContext, ModeContext
 
 
 class AlignBoneRollsOperator(bpy.types.Operator):
@@ -213,10 +213,9 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
                 createds.append(new_bone.name)
                 previous = new_bone
             bone.use_deform = False
-        bpy.ops.object.mode_set(mode="POSE")
-        for created in createds:
-            bpy.context.object.pose.bones[created].bone.hide = True
-        bpy.ops.object.mode_set(mode="EDIT")
+        with ModeContext("POSE"):
+            for created in createds:
+                bpy.context.object.pose.bones[created].bone.hide = True
         bpy.context.scene.world[self._count_key] = self.count
         return {"FINISHED"}
 
@@ -250,12 +249,17 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
         bones.reverse()
         splits = bones[-1].name.split(".")
         edit_bones = context.object.data.edit_bones
-        new_bone = edit_bones.new(".".join(splits[:-1] + ["Blend", splits[-1]]))
+        new_name = ".".join(splits[:-1] + ["Blend", splits[-1]])
+        for child in bones[0].children:
+            if child.name == new_name:
+                new_bone = child
+                break
+        else:
+            new_bone = edit_bones.new(new_name)
         new_bone.envelope_weight = bones[-1].envelope_weight
-        new_bone.envelope_distance = bones[-1].envelope_distanc
+        new_bone.envelope_distance = bones[-1].envelope_distance
         new_bone.head_radius = bones[-1].head_radius
         new_bone.tail_radius = bones[-1].tail_radius
-        new_bone.hide = True
         new_bone.head = bones[-1].head
         parent_bone_vector = bones[0].head - bones[0].tail
         child_bone_vector = bones[-1].tail - bones[-1].head
@@ -267,7 +271,7 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
             tail = (child_bone_vector) + (parent_bone_vector).normalized() * bones[
                 -1
             ].length
-        new_bone.tail = tail.normalized() * 0.05 + new_bone.head
+        new_bone.tail = tail.normalized() * 4.0 + new_bone.head
         new_bone.parent = bones[0]
         # TODO: There is still some imperfection with this roll calculation.
         normal = parent_bone_vector.cross(child_bone_vector)
@@ -276,6 +280,8 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
             bpy.context.scene.cursor.location = normal + new_bone.head
             bpy.context.object.data.edit_bones.active = new_bone
             bpy.ops.armature.calculate_roll(type="CURSOR")
+        with ModeContext("POSE"):
+            bpy.context.object.pose.bones[new_bone.name].bone.hide = True
         return {"FINISHED"}
 
 
