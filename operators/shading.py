@@ -17,10 +17,8 @@ class SmoothNormalsOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        obj = context.object
-        if obj is not None:
-            if obj.mode == "OBJECT":
-                return True
+        if context.object.mode == "OBJECT" and context.selected_objects:
+            return True
         return False
 
     def invoke(self, context, event):
@@ -70,10 +68,8 @@ class ResetNormalsOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        obj = context.object
-        if obj is not None:
-            if obj.mode == "OBJECT":
-                return True
+        if context.object.mode == "OBJECT" and context.selected_objects:
+            return True
         return False
 
     def execute(self, context):
