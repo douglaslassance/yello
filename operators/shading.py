@@ -33,6 +33,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
             for obj in selection_context.selected:
                 obj.data.use_auto_smooth = True
                 dup = obj.copy()
+                dup.name = "{}.Normals".format(obj.name)
                 dup.data = obj.data.copy()
                 for mod in obj.modifiers:
                     if mod.name == "NormalTransfer":
