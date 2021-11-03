@@ -2,11 +2,11 @@
 from bpy.types import Panel
 
 
-class PlaystheticIoView3dPanel(Panel):
+class YelloIoView3dPanel(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_label = "I/O"
-    bl_category = "Playsthetic"
+    bl_category = "Yello"
 
     def draw(self, context):
         layout = self.layout
@@ -18,11 +18,11 @@ class PlaystheticIoView3dPanel(Panel):
         col.operator("object.export_animated_mesh", icon="MOD_SOFT")
 
 
-class PlaystheticRiggingView3dPanel(Panel):
+class YelloRiggingView3dPanel(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_label = "Rigging"
-    bl_category = "Playsthetic"
+    bl_category = "Yello"
 
     def draw(self, context):
         layout = self.layout
@@ -36,11 +36,11 @@ class PlaystheticRiggingView3dPanel(Panel):
         col.operator("armature.generate_blend_bone", icon="ORIENTATION_GLOBAL")
 
 
-class PlaystheticShadingView3dPanel(Panel):
+class YelloShadingView3dPanel(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_label = "Shading"
-    bl_category = "Playsthetic"
+    bl_category = "Yello"
 
     def draw(self, context):
         layout = self.layout
