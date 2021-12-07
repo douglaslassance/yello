@@ -11,7 +11,7 @@ class YelloIoView3dPanel(Panel):
     def draw(self, context):
         layout = self.layout
         col = layout.column(align=True)
-        col.operator("object.lock_file", icon="LOCKED")
+        col.operator("object.make_writable", icon="OUTLINER_DATA_GP_LAYER")
         col.operator("object.open_containing_folder", icon="FILE_FOLDER")
         col.operator("object.export_mesh", icon="MESH_MONKEY")
         col.operator("object.export_animation", icon="ONIONSKIN_ON")

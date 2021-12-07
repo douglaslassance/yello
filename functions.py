@@ -28,16 +28,9 @@ def map_values(value, old_min, old_max, new_max, new_min):
     return (((value - old_min) * (new_max - new_min)) / (old_max - old_min)) + new_min
 
 
-def lock_file(filename):
-    """Lock a file using Git LFS.
-
-    Args:
-        filename (string): The filename of the file to lock.
-    """
-    if not os.path.exists(filename):
-        return False
+def run_command(command: list):
     process = subprocess.Popen(
-        ["git", "lfs", "lock", ".\\{}".format(os.path.basename(filename))],
+        command,
         cwd=os.path.dirname(filename),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
@@ -49,6 +42,42 @@ def lock_file(filename):
     if err:
         logging.error(err)
     return process.returncode
+
+
+def lock_file(filename):
+    """Lock a file using Git LFS.
+
+    Args:
+        filename (string): The filename of the file to lock.
+    """
+    if not os.path.exists(filename):
+        return False
+    command = ["git", "lfs", "lock", ".\\{}".format(os.path.basename(filename))]
+    return run_command(command)
+
+
+def has_conflict(filename):
+    """Check if Gitarmony says we'd have a conflicting touching this file.
+
+    Args:
+        filename (string): The filename of the file to check conflict for.
+    """
+    if not os.path.exists(filename):
+        return False
+    command = ["gitarmony", "has-conflict", ".\\{}".format(os.path.basename(filename))]
+    return run_command(command)
+
+
+def make_writable(filename):
+    """Make file writable safely using Gitarmony.
+
+    Args:
+        filename (string): The filename of the file to make writable.
+    """
+    if not os.path.exists(filename):
+        return False
+    command = ["gitarmony", "make-writable", ".\\{}".format(os.path.basename(filename))]
+    return run_command(command)
 
 
 def is_ancestor_bone(ancestor, descendant):

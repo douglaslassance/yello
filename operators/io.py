@@ -19,7 +19,7 @@ class ExportMeshOperator(bpy.types.Operator):
 
     def execute(self, context):
         filename = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
-        functions.lock_file(filename)
+        functions.make_writable(filename)
         bpy.ops.export_scene.fbx(
             add_leaf_bones=False,
             apply_scale_options="FBX_SCALE_NONE",
@@ -52,7 +52,7 @@ class ExportAnimationOperator(bpy.types.Operator):
 
     def execute(self, context):
         filename = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
-        functions.lock_file(filename)
+        functions.make_writable(filename)
         bpy.ops.export_scene.fbx(
             add_leaf_bones=False,
             apply_scale_options="FBX_SCALE_NONE",
@@ -85,7 +85,7 @@ class ExportAnimatedMeshOperator(bpy.types.Operator):
 
     def execute(self, context):
         filename = os.path.splitext(bpy.data.filepath)[0] + ".abc"
-        functions.lock_file(filename)
+        functions.make_writable(filename)
         bpy.ops.wm.alembic_export(
             apply_subdiv=True,
             check_existing=False,
@@ -98,17 +98,17 @@ class ExportAnimatedMeshOperator(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class LockFileOperator(bpy.types.Operator):
-    bl_idname = "object.lock_file"
-    bl_label = "Lock file"
-    bl_description = "Perform a Git lock on the current file."
+class MakeWritableOperator(bpy.types.Operator):
+    bl_idname = "object.make_writable"
+    bl_label = "Make writable"
+    bl_description = "Perform a Gitarmony make writable on the current file."
 
     @classmethod
     def poll(cls, context):
         return bool(bpy.data.filepath)
 
     def execute(self, context):
-        functions.lock_file(bpy.data.filepath)
+        functions.make_writable(bpy.data.filepath)
         return {"FINISHED"}
 
 
