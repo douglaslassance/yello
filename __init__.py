@@ -37,14 +37,21 @@ auto_load.init()
 
 @persistent
 def save_pre_handler(*args, **kwargs):
-    functions.lock_file(bpy.data.filepath)
+    functions.make_writable(bpy.data.filepath)
+
+
+@persistent
+def load_pre_handler(*args, **kwargs):
+    functions.has_conflict(bpy.data.filepath)
 
 
 def register():
     bpy.app.handlers.save_pre.append(save_pre_handler)
+    bpy.app.handlers.load_pre.append(load_pre_handler)
     auto_load.register()
 
 
 def unregister():
     bpy.app.handlers.save_pre.remove(save_pre_handler)
+    bpy.app.handlers.load_pre.remove(load_pre_handler)
     auto_load.unregister()
