@@ -5,9 +5,7 @@
     }
   ],
   "settings": {
-    "editor.rulers": [
-      88
-    ],
+    "editor.rulers": [88],
     "workbench.tree.indent": 32,
     "githubPullRequests.defaultMergeMethod": "squash"
   }
