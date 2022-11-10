@@ -31,7 +31,7 @@ def map_values(value, old_min, old_max, new_max, new_min):
 def run_command(command: list):
     process = subprocess.Popen(
         command,
-        cwd=os.path.dirname(filename),
+        cwd=os.path.dirname(bpy.data.filepath),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

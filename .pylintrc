@@ -2,13 +2,14 @@
 
 ignore=docs, __pycache__
 disable=
-	no-member,
-	too-many-arguments,
-	too-few-public-methods,
-	logging-format-interpolation,
-	missing-module-docstring,
-	missing-class-docstring,
-	relative-beyond-top-level,
 	assignment-from-no-return,
+	logging-format-interpolation,
+	missing-class-docstring,
+	missing-function-docstring,
+	missing-module-docstring,
+	no-member,
+	relative-beyond-top-level,
+	too-few-public-methods,
+	too-many-arguments,
 
 
