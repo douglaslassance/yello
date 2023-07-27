@@ -57,26 +57,26 @@ def lock_file(filename):
 
 
 def has_conflict(filename):
-    """Check if Gitarmony says we'd have a conflicting touching this file.
+    """Check if Gitalong says we'd have a conflicting touching this file.
 
     Args:
         filename (string): The filename of the file to check conflict for.
     """
     if not os.path.exists(filename):
         return False
-    command = ["gitarmony", "has-conflict", ".\\{}".format(os.path.basename(filename))]
+    command = ["gitalong", "has-conflict", ".\\{}".format(os.path.basename(filename))]
     return run_command(command)
 
 
 def make_writable(filename):
-    """Make file writable safely using Gitarmony.
+    """Make file writable safely using Gitalong.
 
     Args:
         filename (string): The filename of the file to make writable.
     """
     if not os.path.exists(filename):
         return False
-    command = ["gitarmony", "make-writable", ".\\{}".format(os.path.basename(filename))]
+    command = ["gitalong", "make-writable", f".\\{os.path.basename(filename)}"]
     return run_command(command)
 
 
@@ -102,7 +102,7 @@ def get_projected_vector(vector: mathutils.Vector, normal: mathutils.Vector):
     """[summary]
 
     Args:
-        vector (mathutils.Vector): The vector to project.
-        normal (mathutils.Vector): The normal of the plane to project onto. Expects a normalized vector.
+        vector (mathutils.Vector): The vector to project. normal (mathutils.Vector): The
+        normal of the plane to project onto. Expects a normalized vector.
     """
     return vector - normal * vector.dot(normal)
