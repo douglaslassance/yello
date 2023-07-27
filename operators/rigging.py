@@ -34,6 +34,8 @@ class AlignBoneRollsOperator(bpy.types.Operator):
         first_bone_vector = bones[0].tail - bones[0].head
         last_bone_vector = bones[-1].head - bones[-1].tail
         normal = first_bone_vector.cross(last_bone_vector).normalized()
+        # TODO: Intersection is calculated in local space.
+        # This won't work if the amature transform is not zeroed out.
         intersections = mathutils.geometry.intersect_line_line(
             bones[0].head,
             bones[0].head + first_bone_vector * 10,
