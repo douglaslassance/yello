@@ -24,6 +24,7 @@ class ExportMeshOperator(bpy.types.Operator):
             add_leaf_bones=False,
             apply_scale_options="FBX_SCALE_NONE",
             apply_unit_scale=True,
+            armature_nodetype="NULL",
             axis_forward="-Z",
             axis_up="Y",
             bake_anim=False,
@@ -32,6 +33,8 @@ class ExportMeshOperator(bpy.types.Operator):
             global_scale=1.0,
             mesh_smooth_type="FACE",
             object_types={"MESH", "ARMATURE"},
+            primary_bone_axis="Y",
+            secondary_bone_axis="X",
             use_selection=True,
             use_space_transform=True,
         )
@@ -57,6 +60,7 @@ class ExportAnimationOperator(bpy.types.Operator):
             add_leaf_bones=False,
             apply_scale_options="FBX_SCALE_NONE",
             apply_unit_scale=True,
+            armature_nodetype="NULL",
             axis_forward="-Z",
             axis_up="Y",
             bake_anim=True,
@@ -65,6 +69,8 @@ class ExportAnimationOperator(bpy.types.Operator):
             global_scale=1.0,
             mesh_smooth_type="FACE",
             object_types={"ARMATURE"},
+            primary_bone_axis="Y",
+            secondary_bone_axis="X",
             use_selection=True,
             use_space_transform=True,
         )
