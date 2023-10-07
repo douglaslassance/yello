@@ -7,6 +7,10 @@
   "settings": {
     "editor.rulers": [88],
     "workbench.tree.indent": 32,
-    "githubPullRequests.defaultMergeMethod": "squash"
+    "githubPullRequests.defaultMergeMethod": "squash",
+    "[python]": {
+      "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "python.formatting.provider": "none"
   }
 }
