@@ -13,7 +13,7 @@ class ExportMeshOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         if bpy.data.filepath:
-            if context.object.mode == "OBJECT" and context.selected_objects:
+            if context.mode and context.selected_objects:
                 return True
         return False
 
@@ -49,7 +49,7 @@ class ExportAnimationOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         if bpy.data.filepath:
-            if context.object.mode == "OBJECT" and context.selected_objects:
+            if context.mode and context.selected_objects:
                 return True
         return False
 
@@ -85,7 +85,7 @@ class ExportAnimatedMeshOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         if bpy.data.filepath:
-            if context.object.mode == "OBJECT" and context.selected_objects:
+            if context.mode and context.selected_objects:
                 return True
         return False
 

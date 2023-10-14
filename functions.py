@@ -106,3 +106,18 @@ def get_projected_vector(vector: mathutils.Vector, normal: mathutils.Vector):
         normal of the plane to project onto. Expects a normalized vector.
     """
     return vector - normal * vector.dot(normal)
+
+
+def select_objects(objects):
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in objects:
+        obj.select_set(True)
+
+
+def duplicate_object(obj):
+    # with contexts.CursorContext():
+    # bpy.context.scene.cursor.location = obj.location
+    select_objects([obj])
+    bpy.ops.object.duplicate()
+    # bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+    return bpy.context.selected_objects[0]
