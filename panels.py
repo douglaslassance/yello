@@ -47,3 +47,15 @@ class YelloShadingView3dPanel(Panel):
         col = layout.column(align=True)
         col.operator("object.smooth_normals", icon="MOD_SMOOTH")
         col.operator("object.reset_normals", icon="X")
+
+
+class YelloModelingView3dPanel(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_label = "Modeling"
+    bl_category = "Yello"
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+        col.operator("object.slice_meshes_with_collection", icon="MOD_BUILD")
