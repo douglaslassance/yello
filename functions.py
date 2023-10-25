@@ -44,6 +44,13 @@ def run_command(command: list):
     return process.returncode
 
 
+def run_gitalong_command(command: list):
+    try:
+        return run_command(["gitalong"] + command)
+    except FileNotFoundError:
+        logging.warning("Gitalong not found.")
+
+
 def lock_file(filename):
     """Lock a file using Git LFS.
 
@@ -64,8 +71,8 @@ def has_conflict(filename):
     """
     if not os.path.exists(filename):
         return False
-    command = ["gitalong", "has-conflict", ".\\{}".format(os.path.basename(filename))]
-    return run_command(command)
+    command = ["has-conflict", ".\\{}".format(os.path.basename(filename))]
+    return run_gitalong_command(command)
 
 
 def make_writable(filename):
@@ -76,8 +83,8 @@ def make_writable(filename):
     """
     if not os.path.exists(filename):
         return False
-    command = ["gitalong", "make-writable", f".\\{os.path.basename(filename)}"]
-    return run_command(command)
+    command = ["make-writable", f".\\{os.path.basename(filename)}"]
+    return run_gitalong_command(command)
 
 
 def is_ancestor_bone(ancestor, descendant):
