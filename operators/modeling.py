@@ -24,10 +24,11 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
         if set(sources).intersection(collection_objects):
             self.report(
                 {"ERROR"},
-                "Selected meshes cannot be in the collection of meshes to intersect with",
+                "Selected meshes cannot be in the collection of meshes to intersect with.",
             )
             return {"FINISHED"}
         intersections = []
+        empties = []
         for cutter in collection_objects:
             if not cutter.type == "MESH":
                 continue
@@ -35,26 +36,30 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
             for source in sources:
                 if not source.type == "MESH":
                     continue
-                slice = functions.duplicate_object(source)
-                slice.name = f"{source.name}_{cutter.name}"
-                modifier = slice.modifiers.new(name="Subdivision", type="BOOLEAN")
+                cut = functions.duplicate_object(source)
+                cut.name = f"{source.name}_{cutter.name}"
+                modifier = cut.modifiers.new(name="Subdivision", type="BOOLEAN")
                 modifier.operation = "INTERSECT"
                 modifier.object = cutter
-                bpy.context.view_layer.objects.active = slice
+                bpy.context.view_layer.objects.active = cut
                 bpy.ops.object.modifier_apply(modifier=modifier.name)
                 with contexts.CursorContext():
                     bpy.context.scene.cursor.location = cutter.location
                     bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
-                cuts.append(slice)
+                if len(cut.data.vertices) == 0:
+                    bpy.data.objects.remove(cut)
+                    continue
+                cuts.append(cut)
             intersection = None
             if len(cuts) > 1:
                 functions.select_objects(cuts)
                 bpy.ops.object.join()
-                intersection = bpy.context.view_layer.objects.active
-                intersection.name = f"{collection.name}.{cutter.name}"
             elif len(cuts) == 1:
+                bpy.context.view_layer.objects.active = cuts[0]
                 intersection = cuts[0]
             if intersection:
+                intersection = bpy.context.view_layer.objects.active
+                intersection.name = f"{collection.name}.{cutter.name}"
                 intersections.append(intersection)
         functions.select_objects(intersections)
         return {"FINISHED"}
