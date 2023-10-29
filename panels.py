@@ -14,6 +14,7 @@ class YelloIoView3dPanel(Panel):
         col.operator("object.make_writable", icon="OUTLINER_DATA_GP_LAYER")
         col.operator("object.open_containing_folder", icon="FILE_FOLDER")
         col.operator("object.export_mesh", icon="MESH_MONKEY")
+        col.operator("object.export_meshes", icon="COMMUNITY")
         col.operator("object.export_animation", icon="ONIONSKIN_ON")
         col.operator("object.export_animated_mesh", icon="MOD_SOFT")
 
