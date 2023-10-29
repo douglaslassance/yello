@@ -4,6 +4,8 @@ import subprocess
 import bpy
 import mathutils
 
+from . import contexts
+
 
 def create_collection(name="Collection", find_existing=True):
     if name not in bpy.data.collections:
@@ -22,6 +24,7 @@ def add_object_to_collection(obj, collection):
 def remove_object_from_all_collections(obj):
     for col in obj.users_collection:
         col.objects.unlink(obj)
+    bpy.data.scenes["Scene"].collection.objects.link(obj)
 
 
 def map_values(value, old_min, old_max, new_max, new_min):
@@ -122,9 +125,31 @@ def select_objects(objects):
 
 
 def duplicate_object(obj):
-    # with contexts.CursorContext():
-    # bpy.context.scene.cursor.location = obj.location
-    select_objects([obj])
-    bpy.ops.object.duplicate()
-    # bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
-    return bpy.context.selected_objects[0]
+    with contexts.SelectionContext():
+        select_objects([obj])
+        bpy.ops.object.duplicate()
+        return bpy.context.selected_objects[0]
+
+
+def export_fbx(objects, filename):
+    with contexts.SelectionContext():
+        select_objects(objects)
+        make_writable(filename)
+        bpy.ops.export_scene.fbx(
+            add_leaf_bones=False,
+            apply_scale_options="FBX_SCALE_NONE",
+            apply_unit_scale=True,
+            armature_nodetype="NULL",
+            axis_forward="-Z",
+            axis_up="Y",
+            bake_anim=False,
+            bake_space_transform=False,
+            filepath=filename,
+            global_scale=1.0,
+            mesh_smooth_type="FACE",
+            object_types={"MESH", "ARMATURE"},
+            primary_bone_axis="Y",
+            secondary_bone_axis="X",
+            use_selection=True,
+            use_space_transform=True,
+        )
