@@ -21,6 +21,18 @@ def add_object_to_collection(obj, collection):
         bpy.data.collections[collection.name].objects.link(obj)
 
 
+def apply_all_modifiers(obj):
+    """Apply all modifiers on an object.
+
+    Args:
+        obj (bpy.types.Object): The object to apply modifiers on.
+    """
+    with contexts.SelectionContext():
+        select_objects([obj])
+        for modifier in obj.modifiers:
+            bpy.ops.object.modifier_apply(modifier=modifier.name)
+
+
 def remove_object_from_all_collections(obj):
     for col in obj.users_collection:
         col.objects.unlink(obj)
@@ -122,6 +134,8 @@ def select_objects(objects):
     bpy.ops.object.select_all(action="DESELECT")
     for obj in objects:
         obj.select_set(True)
+    if objects:
+        bpy.context.view_layer.objects.active = objects[0]
 
 
 def duplicate_object(obj):
@@ -153,3 +167,37 @@ def export_fbx(objects, filename):
             use_selection=True,
             use_space_transform=True,
         )
+
+
+def apply_transforms(obj, location=True, rotation=True, scale=True):
+    with contexts.SelectionContext():
+        select_objects([obj])
+        bpy.ops.object.transform_apply(
+            location=location, rotation=rotation, scale=scale
+        )
+
+
+def join_objects(objects):
+    joinables = []
+    for obj in objects:
+        if obj.type == "MESH":
+            joinables.append(obj)
+    if not joinables:
+        return None
+    duplicates = []
+    for joinable in joinables:
+        duplicates.append(duplicate_object(joinable))
+    for duplicate in duplicates:
+        apply_all_modifiers(duplicate)
+    with contexts.SelectionContext():
+        select_objects(duplicates)
+        bpy.ops.object.join()
+        joined_mesh = bpy.context.selected_objects[0]
+    apply_transforms(joined_mesh)
+    return joined_mesh
+
+
+def delete_objects(objects):
+    with contexts.SelectionContext():
+        select_objects(objects)
+        bpy.ops.object.delete()
