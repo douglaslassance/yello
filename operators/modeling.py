@@ -37,15 +37,18 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
                 if not source.type == "MESH":
                     continue
                 cut = functions.duplicate_object(source)
+                functions.apply_all_modifiers(cut)
                 cut.name = f"{source.name}_{cutter.name}"
                 modifier = cut.modifiers.new(name="Subdivision", type="BOOLEAN")
                 modifier.operation = "INTERSECT"
                 modifier.object = cutter
                 bpy.context.view_layer.objects.active = cut
                 bpy.ops.object.modifier_apply(modifier=modifier.name)
-                with contexts.CursorContext():
-                    bpy.context.scene.cursor.location = cutter.location
-                    bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+                with contexts.SelectionContext():
+                    functions.select_objects([cut])
+                    with contexts.CursorContext():
+                        bpy.context.scene.cursor.location = cutter.location
+                        bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
                 if len(cut.data.vertices) == 0:
                     bpy.data.objects.remove(cut)
                     continue
