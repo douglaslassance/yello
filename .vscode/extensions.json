@@ -1,0 +1,7 @@
+{
+    "recommendations": [
+        "ms-python.black-formatter",
+        "jacqueslucke.blender-development",
+        "ms-python.vscode-pylance"
+    ]
+}
