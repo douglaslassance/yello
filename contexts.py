@@ -43,5 +43,11 @@ class SelectionContext:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         bpy.ops.object.select_all(action="DESELECT")
         for obj in self.selected:
-            obj.select_set(True)
-        bpy.context.view_layer.objects.active = self.active
+            try:
+                obj.select_set(True)
+            except ReferenceError:
+                pass
+        try:
+            bpy.context.view_layer.objects.active = self.active
+        except ReferenceError:
+            pass

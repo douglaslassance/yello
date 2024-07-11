@@ -10,6 +10,11 @@ class ExportMeshOperator(bpy.types.Operator):
     bl_label = "Export mesh"
     bl_description = "Export selected meshes and armatures to a single FBX"
 
+    joined: bpy.props.BoolProperty(
+        name="Joined",
+        description="Join selected meshes in a single mesh.",
+    )
+
     @classmethod
     def poll(cls, context):
         if bpy.data.filepath:
@@ -17,10 +22,28 @@ class ExportMeshOperator(bpy.types.Operator):
                 return True
         return False
 
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
     def execute(self, context):
+        if self.joined:
+            meshes = []
+            exports = []
+            for obj in bpy.context.selected_objects:
+                if obj.type == "MESH":
+                    meshes.append(obj)
+                else:
+                    exports.append(obj)
+            joined_mesh = functions.join_objects(meshes)
+            if joined_mesh:
+                exports.append(joined_mesh)
+        else:
+            exports = bpy.context.selected_objects
         dirname, basename = os.path.split(bpy.data.filepath)
         filename = os.path.join(dirname, f"{os.path.splitext(basename)[0]}.fbx")
-        functions.export_fbx(bpy.context.selected_objects, filename)
+        functions.export_fbx(exports, filename)
+        if self.joined and joined_mesh:
+            functions.delete_objects([joined_mesh])
         return {"FINISHED"}
 
 
