@@ -19,4 +19,21 @@ Buttons feature tooltips so you can have an idea of what they do.
 
 ## Development
 
-It's recommanded to develop using [Visual Studio Code](https://code.visualstudio.com/) and the incredible [Blender Development](https://marketplace.visualstudio.com/items?itemName=JacquesLucke.blender-development) plugin. For proper linting and auto-complete, point your interpreter to a Python 3.10 virtual environment and install `fake-bpy` using `pip install fake-bpy-module-latest`.
+### Requirements
+
+- Python >=3.10
+- Visual Studio Code
+
+Open the project with Visual Studio Code and make sure to install the recommended extensions, most importantly [Blender Development](https://marketplace.visualstudio.com/items?itemName=JacquesLucke.blender-development). Once done, open a Visual Studio Code terminal and run:
+
+```bash
+python -m venv .venv
+```
+
+Visual Studio Code should now pickup the newly created Python virtual environment. To install the Python package dependencies, open a new terminal and run:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the `Blender: Start` Visual Studio Command to launch Blender with the debugger.
