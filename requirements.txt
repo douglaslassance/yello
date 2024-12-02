@@ -1,0 +1,4 @@
+fake-bpy-module-latest
+mathutils
+pylint
+black
