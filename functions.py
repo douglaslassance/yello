@@ -166,6 +166,20 @@ def export_fbx(objects, filename):
             secondary_bone_axis="X",
             use_selection=True,
             use_space_transform=True,
+            use_visible=True,
+        )
+
+
+def export_gltf(objects, filename, animations=True):
+    with contexts.SelectionContext():
+        select_objects(objects)
+        make_writable(filename)
+        bpy.ops.export_scene.gltf(
+            filepath=filename,
+            export_format="GLB",
+            export_animations=animations,
+            use_selection=True,
+            use_visible=True,
         )
 
 
