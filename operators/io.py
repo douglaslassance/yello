@@ -3,6 +3,7 @@ import subprocess
 import bpy
 
 from .. import functions
+from .. import contexts
 
 
 class ExportMeshOperator(bpy.types.Operator):
@@ -10,10 +11,24 @@ class ExportMeshOperator(bpy.types.Operator):
     bl_label = "Export mesh"
     bl_description = "Export selected meshes and armatures to a single FBX"
 
-    joined: bpy.props.BoolProperty(
-        name="Joined",
+    file_format: bpy.props.EnumProperty(
+        name="File format",
+        description="The file format to export.",
+        items=[
+            ("FBX", "FBX", "FBX"),
+            ("GLTF", "GLTF", "GLTF"),
+        ],
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    join_meshes: bpy.props.BoolProperty(
+        name="Join meshes",
         description="Join selected meshes in a single mesh.",
-    )
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    include_children: bpy.props.BoolProperty(
+        name="Include children",
+        description="Will add all children from selected parents.",
+    )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
     def poll(cls, context):
@@ -26,23 +41,31 @@ class ExportMeshOperator(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context):
-        if self.joined:
-            meshes = []
-            exports = []
+        exports = bpy.context.selected_objects
+        if self.include_children:
             for obj in bpy.context.selected_objects:
+                for child in obj.children:
+                    if child not in exports:
+                        exports.append(child)
+        if self.join_meshes:
+            meshes = []
+            joined_exports = []
+            for obj in exports:
                 if obj.type == "MESH":
                     meshes.append(obj)
                 else:
-                    exports.append(obj)
+                    joined_exports.append(obj)
             joined_mesh = functions.join_objects(meshes)
             if joined_mesh:
-                exports.append(joined_mesh)
-        else:
-            exports = bpy.context.selected_objects
+                joined_exports.append(joined_mesh)
+            exports = joined_exports
         dirname, basename = os.path.split(bpy.data.filepath)
-        filename = os.path.join(dirname, f"{os.path.splitext(basename)[0]}.fbx")
-        functions.export_fbx(exports, filename)
-        if self.joined and joined_mesh:
+        filename = os.path.join(dirname, f"{os.path.splitext(basename)[0]}")
+        if self.file_format == "FBX":
+            functions.export_fbx(exports, filename + ".fbx")
+        elif self.file_format == "GLTF":
+            functions.export_gltf(exports, filename + ".glb", animations=False)
+        if self.join_meshes and joined_mesh:
             functions.delete_objects([joined_mesh])
         return {"FINISHED"}
 
@@ -55,17 +78,19 @@ class ExportMeshesOperator(bpy.types.Operator):
     prefix: bpy.props.StringProperty(
         name="Prefix",
         description="The prefix for this file's name",
-    )
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     separator: bpy.props.StringProperty(
         name="Separator",
         default="_",
         description="The object name separator to use",
-    )
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     remove_pre_existing: bpy.props.BoolProperty(
         name="Remove pre-existing files",
         default=False,
         description="Remove pre-existing FBX files that match this export prefix",
-    )
+    )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
     def poll(cls, context):
