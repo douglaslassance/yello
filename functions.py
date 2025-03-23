@@ -4,6 +4,9 @@ import subprocess
 import bpy
 import mathutils
 
+from bpy.types import Mesh, Attribute
+from bmesh.types import BMesh, BMLayerItem
+
 from . import contexts
 
 
@@ -146,6 +149,7 @@ def duplicate_object(obj):
 
 
 def export_fbx(objects, filename):
+    """https://docs.blender.org/api/current/bpy.ops.export_scene.html#module-bpy.ops.export_scene"""
     with contexts.SelectionContext():
         select_objects(objects)
         make_writable(filename)
@@ -171,13 +175,16 @@ def export_fbx(objects, filename):
 
 
 def export_gltf(objects, filename, animations=True):
+    """https://docs.blender.org/api/current/bpy.ops.export_scene.html#module-bpy.ops.export_scene"""
     with contexts.SelectionContext():
         select_objects(objects)
         make_writable(filename)
         bpy.ops.export_scene.gltf(
-            filepath=filename,
-            export_format="GLB",
             export_animations=animations,
+            export_apply=True,
+            export_def_bones=True,
+            export_format="GLB",
+            filepath=filename,
             use_selection=True,
             use_visible=True,
         )
@@ -215,3 +222,31 @@ def delete_objects(objects):
     with contexts.SelectionContext():
         select_objects(objects)
         bpy.ops.object.delete()
+
+
+def get_active_color_attribute(mesh: Mesh, create: bool = False) -> Attribute | None:
+    """Get the active color attribute."""
+    if mesh.color_attributes:
+        return mesh.color_attributes.active_color
+    elif create:
+        color_attribute = mesh.color_attributes.new(
+            name="Color", type="FLOAT_COLOR", domain="CORNER"
+        )
+        for datum in color_attribute.data:
+            datum.color = (0.0, 0.0, 0.0, 0.0)
+        return color_attribute
+    return None
+
+
+def get_color_attribute_layer(
+    bm: BMesh, color_attribute: Attribute
+) -> BMLayerItem | None:
+    if color_attribute.domain == "CORNER":
+        if color_attribute.data_type == "FLOAT_COLOR":
+            return bm.loops.layers.float_color.get(color_attribute.name)
+        return bm.loops.layers.color.get(color_attribute.name)
+    elif color_attribute.domain == "POINT":
+        if color_attribute.data_type == "FLOAT_COLOR":
+            return bm.verts.layers.float_color.get(color_attribute.name)
+        return bm.verts.layers.color.get(color_attribute.name)
+    return None

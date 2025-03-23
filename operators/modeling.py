@@ -28,7 +28,6 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
             )
             return {"FINISHED"}
         intersections = []
-        empties = []
         for cutter in collection_objects:
             if not cutter.type == "MESH":
                 continue
