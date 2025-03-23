@@ -48,6 +48,7 @@ class YelloShadingView3dPanel(Panel):
         col = layout.column(align=True)
         col.operator("object.smooth_normals", icon="MOD_SMOOTH")
         col.operator("object.reset_normals", icon="X")
+        col.operator("object.set_vertex_color", icon="VPAINT_HLT")
 
 
 class YelloModelingView3dPanel(Panel):
