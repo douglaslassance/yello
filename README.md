@@ -8,8 +8,7 @@ Yello is Playsthetic's integration inside Blender. It adds functionalities that 
 
 ## Installation
 
-Download Yellow following [this link](https://github.com/playsthetic/yello/archive/refs/heads/master.zip).
-Once downloaded, simply install the plugin following [the official Blender instructions](https://docs.blender.org/manual/en/latest/editors/preferences/addons.html#installing-add-ons).
+Drag and drop [this link](https://github.com/playsthetic/yello/archive/refs/heads/main.zip) on Blender's main window.
 
 ## Usage
 
