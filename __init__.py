@@ -19,15 +19,13 @@ modules = None
 ordered_classes = None
 
 
-def init():
+def register():
     global modules
     global ordered_classes
 
-    modules = get_all_submodules(Path(__file__).parent)
+    modules = get_all_submodules(Path(__file__).parent, __name__)
     ordered_classes = get_ordered_classes_to_register(modules)
 
-
-def register():
     for cls in ordered_classes:
         bpy.utils.register_class(cls)
 
@@ -49,8 +47,8 @@ def unregister():
             module.unregister()
 
 
-def get_all_submodules(directory):
-    return list(iter_submodules(directory, directory.name))
+def get_all_submodules(directory, package_name):
+    return list(iter_submodules(directory, package_name))
 
 
 def iter_submodules(path, package_name):
