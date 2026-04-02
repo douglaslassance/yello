@@ -1,9 +1,9 @@
 import os
 import subprocess
+import platform
 import bpy
 
 from .. import functions
-from .. import contexts
 
 
 class ExportMeshOperator(bpy.types.Operator):
@@ -214,5 +214,11 @@ class OpenContainingFolderOperator(bpy.types.Operator):
         return bool(bpy.data.filepath)
 
     def execute(self, context):
-        subprocess.Popen(["explorer", "/select,", bpy.data.filepath])
+        filepath = bpy.data.filepath
+        if platform.system() == "Windows":
+            subprocess.Popen(["explorer", "/select,", filepath])
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", "-R", filepath])
+        else:
+            subprocess.Popen(["xdg-open", os.path.dirname(filepath)])
         return {"FINISHED"}
