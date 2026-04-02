@@ -35,6 +35,9 @@ class YelloRiggingView3dPanel(Panel):
         col.operator("armature.normalize_bone_roll", icon="TRACKING_CLEAR_BACKWARDS")
         col.operator("armature.generate_twist_bones", icon="FORCE_MAGNETIC")
         col.operator("armature.generate_blend_bone", icon="ORIENTATION_GLOBAL")
+        col.separator()
+        col.operator("armature.build_control_rig", icon="ARMATURE_DATA")
+        col.operator("armature.remove_control_rig", icon="X")
 
 
 class YelloShadingView3dPanel(Panel):
