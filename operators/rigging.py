@@ -318,13 +318,14 @@ class BuildControlRigOperator(bpy.types.Operator):
             return {"CANCELLED"}
 
         bone_names = [b.name for b in skel_obj.data.bones]
-        limbs, message = rigging.classify_bones(bone_names)
-        if not limbs:
+        systems, message, raw = rigging.classify_bones(bone_names)
+        self.report({"INFO"}, f"Ollama: {raw}")
+        if not systems:
             self.report({"ERROR"}, message)
             return {"CANCELLED"}
         self.report({"INFO"}, message)
 
-        all_bone_names = rigging.extract_bone_names(limbs)
+        all_bone_names = rigging.extract_bone_names(systems)
 
         bpy.ops.object.mode_set(mode="POSE")
         rigging.cleanup_existing_cr(skel_obj)
@@ -364,16 +365,16 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         context.view_layer.objects.active = cr_obj
         bpy.ops.object.mode_set(mode="EDIT")
-        rigging.build_control_bones(cr_arm_data, limbs, bone_data)
+        rigging.build_control_bones(cr_arm_data, systems, bone_data)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.setup_control_rig_pose(cr_obj, limbs, shapes)
+        rigging.setup_control_rig_pose(cr_obj, systems, shapes)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         context.view_layer.objects.active = skel_obj
         bpy.ops.object.mode_set(mode="POSE")
-        wire_log = rigging.wire_deform_constraints(skel_obj, cr_obj, limbs)
+        wire_log = rigging.wire_deform_constraints(skel_obj, cr_obj, systems)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         cr_obj.show_in_front = True
