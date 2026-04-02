@@ -1,0 +1,1 @@
+Do not use header style comments in the code to group methods or classes. Instead, use docstrings for classes and methods to explain their purpose and functionality. This will help maintain a cleaner codebase and improve readability.
