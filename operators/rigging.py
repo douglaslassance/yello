@@ -4,6 +4,8 @@ import mathutils
 
 from .. import functions
 from ..contexts import CursorContext, ModeContext
+from ..helpers import ollama
+from ..helpers import rigging
 
 
 class AlignBoneRollsOperator(bpy.types.Operator):
@@ -284,6 +286,153 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
             bpy.ops.armature.calculate_roll(type="CURSOR")
         with ModeContext("POSE"):
             bpy.context.object.pose.bones[new_bone.name].bone.hide = True
+        return {"FINISHED"}
+
+
+class BuildControlRigOperator(bpy.types.Operator):
+    bl_idname = "armature.build_control_rig"
+    bl_label = "Build control rig"
+    bl_description = (
+        "Detect arm/leg bones by name and build an IK/FK control rig armature. "
+        "Deform bones are wired via Copy Transforms driven by an ik_fk property."
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
+
+    def invoke(self, context, event):
+        if not ollama.reachable():
+            return context.window_manager.invoke_props_dialog(self, width=300)
+        return self.execute(context)
+
+    def draw(self, context):
+        self.layout.label(text="Ollama is offline.", icon="ERROR")
+        self.layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
+
+    def execute(self, context):
+        skel_obj = context.object
+
+        if not ollama.reachable():
+            return {"CANCELLED"}
+
+        bone_names = [b.name for b in skel_obj.data.bones]
+        limbs, message = rigging.classify_bones(bone_names)
+        if not limbs:
+            self.report({"ERROR"}, message)
+            return {"CANCELLED"}
+        self.report({"INFO"}, message)
+
+        all_bone_names = rigging.extract_bone_names(limbs)
+
+        bpy.ops.object.mode_set(mode="POSE")
+        rigging.cleanup_existing_cr(skel_obj)
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        bpy.ops.object.mode_set(mode="EDIT")
+        bone_data = {}
+        for name in all_bone_names:
+            if name in skel_obj.data.edit_bones:
+                eb = skel_obj.data.edit_bones[name]
+                bone_data[name] = {
+                    "head": eb.head.copy(),
+                    "tail": eb.tail.copy(),
+                    "roll": eb.roll,
+                }
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        shapes = {
+            "circle":  rigging.get_or_create_shape("_shape_circle",  rigging.create_circle_shape),
+            "box":     rigging.get_or_create_shape("_shape_box",     rigging.create_box_shape),
+            "diamond": rigging.get_or_create_shape("_shape_diamond", rigging.create_diamond_shape),
+            "pelvis":  rigging.get_or_create_shape("_shape_pelvis",  rigging.create_pelvis_shape),
+            "root":    rigging.get_or_create_shape("_shape_root",    rigging.create_root_shape),
+        }
+
+        cr_name = skel_obj.name + "_CR"
+        if cr_name in bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[cr_name], do_unlink=True)
+
+        cr_arm_data = bpy.data.armatures.new(cr_name)
+        cr_obj = bpy.data.objects.new(cr_name, cr_arm_data)
+        for col in skel_obj.users_collection:
+            col.objects.link(cr_obj)
+        if not skel_obj.users_collection:
+            context.scene.collection.objects.link(cr_obj)
+        cr_obj.matrix_world = skel_obj.matrix_world.copy()
+
+        context.view_layer.objects.active = cr_obj
+        bpy.ops.object.mode_set(mode="EDIT")
+        rigging.build_control_bones(cr_arm_data, limbs, bone_data)
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        bpy.ops.object.mode_set(mode="POSE")
+        rigging.setup_control_rig_pose(cr_obj, limbs, shapes)
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        context.view_layer.objects.active = skel_obj
+        bpy.ops.object.mode_set(mode="POSE")
+        wire_log = rigging.wire_deform_constraints(skel_obj, cr_obj, limbs)
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        cr_obj.show_in_front = True
+        cr_arm_data.display_type = "STICK"
+        cr_arm_data.show_bone_custom_shapes = True
+        cr_arm_data.show_bone_colors = True
+
+        skel_obj.hide_set(True)
+
+        context.view_layer.objects.active = cr_obj
+        bpy.context.scene.frame_set(bpy.context.scene.frame_current)
+        for line in wire_log:
+            if line:
+                self.report({"INFO"}, line)
+        self.report({"INFO"}, f"Control rig built: {cr_name}")
+        return {"FINISHED"}
+
+
+class RemoveControlRigOperator(bpy.types.Operator):
+    bl_idname = "armature.remove_control_rig"
+    bl_label = "Remove control rig"
+    bl_description = "Remove the control rig and all constraints from the skeleton armature."
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
+
+    @staticmethod
+    def _resolve_skeleton(context):
+        """Return the skeleton object whether the user selected the CR or the skeleton."""
+        obj = context.object
+        if obj is None or obj.type != "ARMATURE":
+            return None
+        # If the selected object ends with _CR, the skeleton is the name without it
+        if obj.name.endswith("_CR"):
+            skel_name = obj.name[:-3]
+            return bpy.data.objects.get(skel_name)
+        return obj
+
+    def execute(self, context):
+        skel_obj = self._resolve_skeleton(context)
+        if skel_obj is None:
+            self.report({"ERROR"}, "Could not find the skeleton armature.")
+            return {"CANCELLED"}
+        cr_name = skel_obj.name + "_CR"
+
+        skel_obj.hide_set(False)
+        context.view_layer.objects.active = skel_obj
+        bpy.ops.object.mode_set(mode="POSE")
+        rigging.cleanup_existing_cr(skel_obj)
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        if cr_name in bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[cr_name], do_unlink=True)
+            self.report({"INFO"}, f"Removed control rig: {cr_name}")
+        else:
+            self.report({"WARNING"}, f"No control rig found ({cr_name})")
+
         return {"FINISHED"}
 
 
