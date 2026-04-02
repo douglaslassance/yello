@@ -344,14 +344,14 @@ class BuildControlRigOperator(bpy.types.Operator):
         bpy.ops.object.mode_set(mode="OBJECT")
 
         shapes = {
-            "circle":  rigging.get_or_create_shape("_shape_circle",  rigging.create_circle_shape),
-            "box":     rigging.get_or_create_shape("_shape_box",     rigging.create_box_shape),
+            "circle": rigging.get_or_create_shape("_shape_circle", rigging.create_circle_shape),
+            "box": rigging.get_or_create_shape("_shape_box", rigging.create_box_shape),
             "diamond": rigging.get_or_create_shape("_shape_diamond", rigging.create_diamond_shape),
-            "pelvis":  rigging.get_or_create_shape("_shape_pelvis",  rigging.create_pelvis_shape),
-            "root":    rigging.get_or_create_shape("_shape_root",    rigging.create_root_shape),
+            "sphere": rigging.get_or_create_shape("_shape_sphere", rigging.create_sphere_shape),
+            "square": rigging.get_or_create_shape("_shape_square", rigging.create_square_shape),
         }
 
-        cr_name = skel_obj.name + "_CR"
+        cr_name = skel_obj.name + "_ControlRig"
         if cr_name in bpy.data.objects:
             bpy.data.objects.remove(bpy.data.objects[cr_name], do_unlink=True)
 
@@ -410,8 +410,8 @@ class RemoveControlRigOperator(bpy.types.Operator):
         if obj is None or obj.type != "ARMATURE":
             return None
         # If the selected object ends with _CR, the skeleton is the name without it
-        if obj.name.endswith("_CR"):
-            skel_name = obj.name[:-3]
+        if obj.name.endswith("_ControlRig"):
+            skel_name = obj.name[:-len("_ControlRig")]
             return bpy.data.objects.get(skel_name)
         return obj
 
@@ -420,7 +420,7 @@ class RemoveControlRigOperator(bpy.types.Operator):
         if skel_obj is None:
             self.report({"ERROR"}, "Could not find the skeleton armature.")
             return {"CANCELLED"}
-        cr_name = skel_obj.name + "_CR"
+        cr_name = skel_obj.name + "_ControlRig"
 
         skel_obj.hide_set(False)
         context.view_layer.objects.active = skel_obj

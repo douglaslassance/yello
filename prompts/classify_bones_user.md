@@ -3,13 +3,14 @@ Bone names:
 
 Return ONLY a JSON object with a "systems" array.
 All bone name values must be copied VERBATIM from the list above.
+Always include optional fields explicitly — set them to null when not found, never omit them.
 
 ---
 
 SYSTEMS
 
 Each entry in "systems" has a "type" and type-specific fields.
-A character may have any number of each system type (e.g. multiple arms, multiple legs).
+A character may have any number of each system type (e.g. multiple arms, multiple legs, many fingers).
 
 spine
   Required: vertebrae — ordered list of bones from pelvis to chest, low to high. Do NOT include neck or head.
@@ -17,18 +18,27 @@ spine
 
 arm
   Required: upper_arm, forearm, hand
-  Optional: shoulder, fingers (object mapping finger name to ordered chain of bones, knuckle to tip)
+  Optional: shoulder — include the clavicle/collar bone if present, set to null if absent
   Also: side (e.g. "L", "R", "L2"), parent (name of the deform bone this arm attaches to)
 
 leg
   Required: upper_leg, lower_leg, foot
-  Optional: toe
+  Optional: toe — set to null if absent
   Also: side (e.g. "L", "R"), parent (name of the deform bone this leg attaches to)
 
 head
   Required: head
-  Optional: neck
+  Optional: neck — set to null if absent
   Also: parent (name of the deform bone this head attaches to)
+
+finger
+  Required: chain — ordered list of bones from knuckle to fingertip
+  Also: name, side, parent (name of the hand bone this finger attaches to)
+  Notes on name:
+    - Use "thumb", "index", "middle", "ring", or "pinky" when the rig uses standard finger names.
+    - If the rig numbers fingers (e.g. finger_1, finger_2) use "finger_1", "finger_2", etc.
+    - Create one finger system per finger. A typical hand has 5 fingers.
+  IMPORTANT: Output ALL fingers found on ALL hands. Do not skip or omit any finger.
 
 ---
 
@@ -62,14 +72,7 @@ SCHEMA
       "shoulder": "<bone name or null>",
       "upper_arm": "<bone name>",
       "forearm": "<bone name>",
-      "hand": "<bone name>",
-      "fingers": {
-        "thumb":  ["<b1>", "<b2>", "..."],
-        "index":  ["<b1>", "<b2>", "..."],
-        "middle": ["<b1>", "<b2>", "..."],
-        "ring":   ["<b1>", "<b2>", "..."],
-        "pinky":  ["<b1>", "<b2>", "..."]
-      }
+      "hand": "<bone name>"
     },
     {
       "type": "leg",
@@ -85,6 +88,13 @@ SCHEMA
       "parent": "<deform bone this head attaches to>",
       "neck": "<bone name or null>",
       "head": "<bone name>"
+    },
+    {
+      "type": "finger",
+      "name": "<thumb | index | middle | ring | pinky | finger_1 | finger_2 | ...>",
+      "side": "<L or R>",
+      "parent": "<hand bone this finger attaches to>",
+      "chain": ["<knuckle>", "<mid>", "<tip>", "..."]
     }
   ]
 }
@@ -107,11 +117,7 @@ EXAMPLE (Mixamo-style rig)
       "shoulder": "LeftShoulder",
       "upper_arm": "LeftArm",
       "forearm": "LeftForeArm",
-      "hand": "LeftHand",
-      "fingers": {
-        "thumb": ["LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3"],
-        "index": ["LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3"]
-      }
+      "hand": "LeftHand"
     },
     {
       "type": "arm",
@@ -120,11 +126,7 @@ EXAMPLE (Mixamo-style rig)
       "shoulder": "RightShoulder",
       "upper_arm": "RightArm",
       "forearm": "RightForeArm",
-      "hand": "RightHand",
-      "fingers": {
-        "thumb": ["RightHandThumb1", "RightHandThumb2", "RightHandThumb3"],
-        "index": ["RightHandIndex1", "RightHandIndex2", "RightHandIndex3"]
-      }
+      "hand": "RightHand"
     },
     {
       "type": "leg",
@@ -149,6 +151,76 @@ EXAMPLE (Mixamo-style rig)
       "parent": "Spine2",
       "neck": "Neck",
       "head": "Head"
+    },
+    {
+      "type": "finger",
+      "name": "thumb",
+      "side": "L",
+      "parent": "LeftHand",
+      "chain": ["LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3"]
+    },
+    {
+      "type": "finger",
+      "name": "index",
+      "side": "L",
+      "parent": "LeftHand",
+      "chain": ["LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3"]
+    },
+    {
+      "type": "finger",
+      "name": "middle",
+      "side": "L",
+      "parent": "LeftHand",
+      "chain": ["LeftHandMiddle1", "LeftHandMiddle2", "LeftHandMiddle3"]
+    },
+    {
+      "type": "finger",
+      "name": "ring",
+      "side": "L",
+      "parent": "LeftHand",
+      "chain": ["LeftHandRing1", "LeftHandRing2", "LeftHandRing3"]
+    },
+    {
+      "type": "finger",
+      "name": "pinky",
+      "side": "L",
+      "parent": "LeftHand",
+      "chain": ["LeftHandPinky1", "LeftHandPinky2", "LeftHandPinky3"]
+    },
+    {
+      "type": "finger",
+      "name": "thumb",
+      "side": "R",
+      "parent": "RightHand",
+      "chain": ["RightHandThumb1", "RightHandThumb2", "RightHandThumb3"]
+    },
+    {
+      "type": "finger",
+      "name": "index",
+      "side": "R",
+      "parent": "RightHand",
+      "chain": ["RightHandIndex1", "RightHandIndex2", "RightHandIndex3"]
+    },
+    {
+      "type": "finger",
+      "name": "middle",
+      "side": "R",
+      "parent": "RightHand",
+      "chain": ["RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3"]
+    },
+    {
+      "type": "finger",
+      "name": "ring",
+      "side": "R",
+      "parent": "RightHand",
+      "chain": ["RightHandRing1", "RightHandRing2", "RightHandRing3"]
+    },
+    {
+      "type": "finger",
+      "name": "pinky",
+      "side": "R",
+      "parent": "RightHand",
+      "chain": ["RightHandPinky1", "RightHandPinky2", "RightHandPinky3"]
     }
   ]
 }

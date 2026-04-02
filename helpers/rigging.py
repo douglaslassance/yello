@@ -34,7 +34,7 @@ def classify_bones(bone_names):
         data = json.loads(raw or "{}")
         systems = _parse_systems(data, bone_names)
         if systems:
-            summary = [f"{s['type']}.{s.get('side', '-')}" for s in systems]
+            summary = [f"{s['type']}.{s.get('side', s.get('name', '-'))}" for s in systems]
             return systems, f"Identified: {summary}", raw
         return None, f"Could not parse systems from Ollama response: {raw[:300]}", raw
     except urllib.error.HTTPError as exc:
@@ -78,11 +78,6 @@ def _parse_systems(data, bone_names):
             hand = resolve(entry.get("hand"))
             if not all([upper_arm, forearm, hand]):
                 continue
-            fingers = {}
-            for fname, chain in (entry.get("fingers") or {}).items():
-                resolved = resolve_chain(chain)
-                if resolved:
-                    fingers[fname] = resolved
             systems.append({
                 "type": "arm",
                 "side": str(entry.get("side") or "L"),
@@ -91,7 +86,6 @@ def _parse_systems(data, bone_names):
                 "upper_arm": upper_arm,
                 "forearm": forearm,
                 "hand": hand,
-                "fingers": fingers,
             })
 
         elif t == "leg":
@@ -121,6 +115,19 @@ def _parse_systems(data, bone_names):
                 "head": head,
             })
 
+        elif t == "finger":
+            chain = resolve_chain(entry.get("chain"))
+            name = entry.get("name")
+            if not chain or not name:
+                continue
+            systems.append({
+                "type": "finger",
+                "name": str(name).lower(),
+                "side": str(entry.get("side") or "L"),
+                "parent": entry.get("parent"),
+                "chain": chain,
+            })
+
     return systems or None
 
 
@@ -137,8 +144,6 @@ def extract_bone_names(systems):
             for key in ("shoulder", "upper_arm", "forearm", "hand"):
                 if s.get(key):
                     names.add(s[key])
-            for chain in (s.get("fingers") or {}).values():
-                names.update(chain)
         elif t == "leg":
             for key in ("upper_leg", "lower_leg", "foot", "toe"):
                 if s.get(key):
@@ -147,6 +152,8 @@ def extract_bone_names(systems):
             for key in ("neck", "head"):
                 if s.get(key):
                     names.add(s[key])
+        elif t == "finger":
+            names.update(s.get("chain") or [])
     return names
 
 
@@ -222,30 +229,52 @@ def create_diamond_shape(name):
     return _wire_shape(name, [([co[a], co[b]], False) for a, b in edges])
 
 
-def create_root_shape(name):
-    s = 1.0
-    square = [(-s, 0, s), (s, 0, s), (s, 0, -s), (-s, 0, -s)]
+def create_sphere_shape(name):
+    """Unit sphere approximated by three orthogonal circles."""
+    n = 16
+    xy = [(math.cos(2 * math.pi * i / n), math.sin(2 * math.pi * i / n), 0.0) for i in range(n)]
+    xz = [(math.cos(2 * math.pi * i / n), 0.0, math.sin(2 * math.pi * i / n)) for i in range(n)]
+    yz = [(0.0, math.cos(2 * math.pi * i / n), math.sin(2 * math.pi * i / n)) for i in range(n)]
+    return _wire_shape(name, [(xy, True), (xz, True), (yz, True)])
+
+
+def create_square_shape(name):
+    """Unit square with crosshairs in the XZ plane."""
+    pts = [(-1, 0, 1), (1, 0, 1), (1, 0, -1), (-1, 0, -1)]
     return _wire_shape(name, [
-        (square, True),
-        ([(-s, 0, 0), (s, 0, 0)], False),
-        ([(0, 0, -s), (0, 0, s)], False),
+        (pts, True),
+        ([(-1, 0, 0), (1, 0, 0)], False),
+        ([(0, 0, -1), (0, 0, 1)], False),
     ])
 
 
-def create_pelvis_shape(name):
-    n = 16
-    pts = [(1.2 * math.cos(2 * math.pi * i / n), 0.0, 0.5 * math.sin(2 * math.pi * i / n)) for i in range(n)]
-    return _wire_shape(name, [(pts, True)])
-
 
 def _calc_pole_pos(upper_head, upper_tail, lower_tail):
-    v1 = upper_tail - upper_head
-    v2 = lower_tail - upper_tail
-    normal = v1.cross(v2)
-    dist = v1.length
-    if normal.length > 1e-4:
-        return upper_tail + normal.normalized() * dist
-    return upper_tail + mathutils.Vector((0.0, dist, 0.0))
+    """Calculate the knee/elbow pole target position.
+
+    Places the pole at the knee joint, offset along the flipped bisector of the
+    thigh/calf angle. The bisector of (v_to_hip + v_to_ankle) points into the
+    concave side of the bend; flipping it gives the convex side the knee sticks
+    out toward. Falls back to a world-forward projection for a straight leg.
+    """
+    knee = upper_tail
+    v_to_hip = (upper_head - knee).normalized()
+    v_to_ankle = (lower_tail - knee).normalized()
+    bisector = v_to_hip + v_to_ankle
+    dist = (upper_tail - upper_head).length
+
+    if bisector.length > 1e-4:
+        pole_dir = -bisector.normalized()
+    else:
+        leg_axis = (lower_tail - upper_head).normalized()
+        world_fwd = mathutils.Vector((0.0, 1.0, 0.0))
+        pole_dir = world_fwd - world_fwd.dot(leg_axis) * leg_axis
+        if pole_dir.length < 1e-4:
+            pole_dir = mathutils.Vector((1.0, 0.0, 0.0))
+        else:
+            pole_dir = pole_dir.normalized()
+
+    return knee + pole_dir * dist
 
 
 def _eb(ebs, name, head, tail, roll, parent=None, connect=False):
@@ -261,6 +290,15 @@ def _connected(head, parent_tail):
     return (head - parent_tail).length < 1e-4
 
 
+def _side_color(side):
+    """Return the bone color for a given side: left=yellow, right=green, center=purple."""
+    if side == "L":
+        return dracula.YELLOW
+    if side == "R":
+        return dracula.GREEN
+    return dracula.PURPLE
+
+
 def _bone_color(pb, color):
     pb.color.palette = "CUSTOM"
     pb.color.custom.normal = color
@@ -269,17 +307,39 @@ def _bone_color(pb, color):
 
 
 def _assign_shape(pb, shape, use_bone_size=True, scale=1.0):
+    """Assign a custom shape to a pose bone.
+
+    scale can be a float for uniform scaling or a (x, y, z) tuple for per-axis scaling.
+    """
     pb.custom_shape = shape
     pb.use_custom_shape_bone_size = use_bone_size
-    pb.custom_shape_scale_xyz = (scale, scale, scale)
+    if isinstance(scale, (int, float)):
+        pb.custom_shape_scale_xyz = (scale, scale, scale)
+    else:
+        pb.custom_shape_scale_xyz = scale
     pb.custom_shape_wire_width = 3.0
+
+
+def _finger_ctrl_name(system, index):
+    """Return the consistent control bone name for a finger bone at a given index."""
+    return f"FK_{system['name'].capitalize()}.{index + 1:03d}.{system['side']}"
+
+
+def _spine_ctrl_name(index, total):
+    """Return the consistent control bone name for a spine vertebra at a given index.
+
+    The last vertebra in the chain is always named FK_Chest.
+    """
+    if index == total - 1:
+        return "FK_Chest"
+    return f"FK_Spine.{index + 1:03d}"
 
 
 def _build_spine_system(ebs, system, bd, root_eb):
     """Build spine control bones.
 
     Returns (hips_eb, chest_eb, deform_to_ctrl) where deform_to_ctrl maps
-    deform bone names to their primary edit bones for parent resolution.
+    deform bone names to their ctrl edit bones for parent resolution by other systems.
     """
     deform_to_ctrl = {}
     pelvis_eb = None
@@ -300,9 +360,8 @@ def _build_spine_system(ebs, system, bd, root_eb):
     chain = [n for n in (system.get("vertebrae") or []) if n in bd]
     for i, name in enumerate(chain):
         d = bd[name]
-        ctrl_name = "FK_Chest" if i == len(chain) - 1 else f"FK_{name}"
-        connected = prev_data is not None and _connected(d["head"], prev_data["tail"])
-        ctrl_eb = _eb(ebs, ctrl_name, d["head"], d["tail"], d["roll"], prev, connected)
+        ctrl_eb = _eb(ebs, _spine_ctrl_name(i, len(chain)), d["head"], d["tail"], d["roll"], prev,
+                      prev_data is not None and _connected(d["head"], prev_data["tail"]))
         deform_to_ctrl[name] = ctrl_eb
         prev, prev_data = ctrl_eb, d
         chest_eb = ctrl_eb
@@ -310,50 +369,52 @@ def _build_spine_system(ebs, system, bd, root_eb):
     return hips_eb, chest_eb, deform_to_ctrl
 
 
-def _build_arm_system(ebs, system, bd, parent_eb):
-    """Build arm FK control bones including fingers."""
+def _build_arm_system(ebs, system, bd, parent_eb, deform_to_ctrl):
+    """Build arm FK control bones and register them in deform_to_ctrl for finger parenting."""
     s = system["side"]
     arm_root = parent_eb
 
     if system.get("shoulder") and system["shoulder"] in bd:
         d = bd[system["shoulder"]]
         sh_eb = _eb(ebs, f"FK_Shoulder.{s}", d["head"], d["tail"], d["roll"], parent_eb, False)
+        deform_to_ctrl[system["shoulder"]] = sh_eb
         arm_root = sh_eb
 
     u_data = bd[system["upper_arm"]]
     upper_eb = _eb(ebs, f"FK_UpperArm.{s}", u_data["head"], u_data["tail"], u_data["roll"], arm_root, False)
+    deform_to_ctrl[system["upper_arm"]] = upper_eb
 
     f_data = bd[system["forearm"]]
     forearm_eb = _eb(ebs, f"FK_Forearm.{s}", f_data["head"], f_data["tail"], f_data["roll"], upper_eb,
                      _connected(f_data["head"], u_data["tail"]))
+    deform_to_ctrl[system["forearm"]] = forearm_eb
 
     h_data = bd[system["hand"]]
     hand_eb = _eb(ebs, f"FK_Hand.{s}", h_data["head"], h_data["tail"], h_data["roll"], forearm_eb,
                   _connected(h_data["head"], f_data["tail"]))
-
-    for finger_name, chain in (system.get("fingers") or {}).items():
-        prev, prev_data = hand_eb, None
-        for bone_name in chain:
-            if bone_name not in bd:
-                continue
-            d = bd[bone_name]
-            connected = prev_data is not None and _connected(d["head"], prev_data["tail"])
-            prev = _eb(ebs, f"FK_{bone_name}", d["head"], d["tail"], d["roll"], prev, connected)
-            prev_data = d
+    deform_to_ctrl[system["hand"]] = hand_eb
 
 
 def _build_leg_system(ebs, system, bd, parent_eb):
-    """Build leg IK control bones with a hidden mechanism chain and a free foot target."""
+    """Build leg IK control bones with a hidden mechanism chain and a free foot target.
+
+    IK_Foot and Pole_Knee are parented to FK_Root so they move with the master control.
+    """
     s = system["side"]
+    root_eb = ebs.get("FK_Root")
     u_data = bd[system["upper_leg"]]
     l_data = bd[system["lower_leg"]]
     f_data = bd[system["foot"]]
     ik_u = _eb(ebs, f"IK_UpperLeg.{s}", u_data["head"], u_data["tail"], u_data["roll"], parent_eb, False)
     _eb(ebs, f"IK_LowerLeg.{s}", l_data["head"], l_data["tail"], l_data["roll"], ik_u,
         _connected(l_data["head"], u_data["tail"]))
-    _eb(ebs, f"IK_Foot.{s}", f_data["head"], f_data["tail"], f_data["roll"])
+    foot_eb = _eb(ebs, f"IK_Foot.{s}", f_data["head"], f_data["tail"], f_data["roll"], root_eb)
+    if system.get("toe") and system["toe"] in bd:
+        t_data = bd[system["toe"]]
+        _eb(ebs, f"FK_Toe.{s}", t_data["head"], t_data["tail"], t_data["roll"], foot_eb,
+            _connected(t_data["head"], f_data["tail"]))
     pole = _calc_pole_pos(u_data["head"], u_data["tail"], l_data["tail"])
-    _eb(ebs, f"Pole_Knee.{s}", pole, pole + mathutils.Vector((0.0, 0.05, 0.0)), 0.0)
+    _eb(ebs, f"Pole_Knee.{s}", pole, pole + mathutils.Vector((0.0, 0.05, 0.0)), 0.0, root_eb)
 
 
 def _build_head_system(ebs, system, bd, parent_eb):
@@ -365,6 +426,18 @@ def _build_head_system(ebs, system, bd, parent_eb):
     if system["head"] in bd:
         d = bd[system["head"]]
         _eb(ebs, "FK_Head", d["head"], d["tail"], d["roll"], neck_eb or parent_eb, False)
+
+
+def _build_finger_system(ebs, system, bd, parent_eb):
+    """Build finger FK control bones with consistent role-based names."""
+    prev, prev_data = parent_eb, None
+    for i, bone_name in enumerate(system.get("chain") or []):
+        if bone_name not in bd:
+            continue
+        d = bd[bone_name]
+        ctrl_eb = _eb(ebs, _finger_ctrl_name(system, i), d["head"], d["tail"], d["roll"], prev,
+                      prev_data is not None and _connected(d["head"], prev_data["tail"]))
+        prev, prev_data = ctrl_eb, d
 
 
 def build_control_bones(cr_arm_data, systems, bone_data):
@@ -385,8 +458,7 @@ def build_control_bones(cr_arm_data, systems, bone_data):
     for s in systems:
         t = s["type"]
         if t == "arm":
-            parent_eb = deform_to_ctrl.get(s.get("parent")) or chest_eb
-            _build_arm_system(ebs, s, bone_data, parent_eb)
+            _build_arm_system(ebs, s, bone_data, chest_eb, deform_to_ctrl)
         elif t == "leg":
             parent_eb = hips_eb or deform_to_ctrl.get(s.get("parent")) or chest_eb
             _build_leg_system(ebs, s, bone_data, parent_eb)
@@ -394,54 +466,58 @@ def build_control_bones(cr_arm_data, systems, bone_data):
             parent_eb = deform_to_ctrl.get(s.get("parent")) or chest_eb
             _build_head_system(ebs, s, bone_data, parent_eb)
 
+    for s in systems:
+        if s["type"] == "finger":
+            parent_eb = deform_to_ctrl.get(s.get("parent")) or chest_eb
+            _build_finger_system(ebs, s, bone_data, parent_eb)
+
 
 def _setup_spine_pose(cr_obj, system, shapes):
-    """Pelvis as yellow oval, vertebrae as pink circles."""
+    """Pelvis and vertebrae as purple circles (central controls)."""
     pbs = cr_obj.pose.bones
     if "FK_Pelvis" in pbs:
-        _assign_shape(pbs["FK_Pelvis"], shapes["pelvis"], True, 3.0)
-        _bone_color(pbs["FK_Pelvis"], dracula.YELLOW)
+        _assign_shape(pbs["FK_Pelvis"], shapes["circle"], True, (3.0, 3.0, 1.5))
+        _bone_color(pbs["FK_Pelvis"], dracula.PURPLE)
     if "FK_Hips" in pbs:
-        _assign_shape(pbs["FK_Hips"], shapes["pelvis"], True, 2.0)
-        _bone_color(pbs["FK_Hips"], dracula.YELLOW)
+        _assign_shape(pbs["FK_Hips"], shapes["circle"], True, (2.0, 2.0, 1.0))
+        _bone_color(pbs["FK_Hips"], dracula.PURPLE)
     chain = system.get("vertebrae") or []
-    for i, name in enumerate(chain):
-        ctrl = "FK_Chest" if i == len(chain) - 1 else f"FK_{name}"
+    for i in range(len(chain)):
+        ctrl = _spine_ctrl_name(i, len(chain))
         if ctrl in pbs:
             _assign_shape(pbs[ctrl], shapes["circle"], True, 1.25)
-            _bone_color(pbs[ctrl], dracula.PINK)
+            _bone_color(pbs[ctrl], dracula.PURPLE)
 
 
 def _setup_arm_pose(cr_obj, system, shapes):
-    """Arm FK bones as purple circles. Forearm and fingers smaller than upper arm and hand."""
+    """Arm FK bones colored by side: left=yellow, right=green."""
     pbs, s = cr_obj.pose.bones, system["side"]
+    color = _side_color(s)
     if f"FK_Shoulder.{s}" in pbs:
         _assign_shape(pbs[f"FK_Shoulder.{s}"], shapes["circle"], True, 0.3)
-        _bone_color(pbs[f"FK_Shoulder.{s}"], dracula.PURPLE)
+        _bone_color(pbs[f"FK_Shoulder.{s}"], color)
     for name in (f"FK_UpperArm.{s}", f"FK_Hand.{s}"):
         if name in pbs:
             _assign_shape(pbs[name], shapes["circle"], True, 0.4)
-            _bone_color(pbs[name], dracula.PURPLE)
+            _bone_color(pbs[name], color)
     if f"FK_Forearm.{s}" in pbs:
         _assign_shape(pbs[f"FK_Forearm.{s}"], shapes["circle"], True, 0.3)
-        _bone_color(pbs[f"FK_Forearm.{s}"], dracula.PURPLE)
-    for chain in (system.get("fingers") or {}).values():
-        for bone_name in chain:
-            ctrl = f"FK_{bone_name}"
-            if ctrl in pbs:
-                _assign_shape(pbs[ctrl], shapes["circle"], True, 0.3)
-                _bone_color(pbs[ctrl], dracula.PURPLE)
+        _bone_color(pbs[f"FK_Forearm.{s}"], color)
 
 
 def _setup_leg_pose(cr_obj, system, shapes):
-    """IK foot as cyan box, knee pole as orange diamond. Mechanism chain hidden."""
+    """IK foot as box, knee swivel as sphere, both colored by side. Mechanism chain hidden."""
     pbs, s = cr_obj.pose.bones, system["side"]
+    color = _side_color(s)
     if f"IK_Foot.{s}" in pbs:
-        _assign_shape(pbs[f"IK_Foot.{s}"], shapes["box"], False, 0.18)
-        _bone_color(pbs[f"IK_Foot.{s}"], dracula.CYAN)
+        _assign_shape(pbs[f"IK_Foot.{s}"], shapes["box"], False, 1.8)
+        _bone_color(pbs[f"IK_Foot.{s}"], color)
+    if f"FK_Toe.{s}" in pbs:
+        _assign_shape(pbs[f"FK_Toe.{s}"], shapes["box"], False, 0.8)
+        _bone_color(pbs[f"FK_Toe.{s}"], color)
     if f"Pole_Knee.{s}" in pbs:
-        _assign_shape(pbs[f"Pole_Knee.{s}"], shapes["diamond"], False, 8.0)
-        _bone_color(pbs[f"Pole_Knee.{s}"], dracula.ORANGE)
+        _assign_shape(pbs[f"Pole_Knee.{s}"], shapes["sphere"], False, 1.05)
+        _bone_color(pbs[f"Pole_Knee.{s}"], color)
     if f"IK_LowerLeg.{s}" in pbs:
         c = pbs[f"IK_LowerLeg.{s}"].constraints.new("IK")
         c.target, c.subtarget = cr_obj, f"IK_Foot.{s}"
@@ -453,14 +529,25 @@ def _setup_leg_pose(cr_obj, system, shapes):
 
 
 def _setup_head_pose(cr_obj, shapes):
-    """Neck and head as pink circles, head slightly larger."""
+    """Neck and head as purple circles (central controls), head slightly larger."""
     pbs = cr_obj.pose.bones
     if "FK_Neck" in pbs:
         _assign_shape(pbs["FK_Neck"], shapes["circle"], True, 0.6)
-        _bone_color(pbs["FK_Neck"], dracula.PINK)
+        _bone_color(pbs["FK_Neck"], dracula.PURPLE)
     if "FK_Head" in pbs:
         _assign_shape(pbs["FK_Head"], shapes["circle"], True, 0.8)
-        _bone_color(pbs["FK_Head"], dracula.PINK)
+        _bone_color(pbs["FK_Head"], dracula.PURPLE)
+
+
+def _setup_finger_pose(cr_obj, system, shapes):
+    """Finger FK bones colored by side: left=yellow, right=green."""
+    pbs = cr_obj.pose.bones
+    color = _side_color(system["side"])
+    for i in range(len(system.get("chain") or [])):
+        ctrl = _finger_ctrl_name(system, i)
+        if ctrl in pbs:
+            _assign_shape(pbs[ctrl], shapes["circle"], True, 0.3)
+            _bone_color(pbs[ctrl], color)
 
 
 def setup_control_rig_pose(cr_obj, systems, shapes):
@@ -468,8 +555,8 @@ def setup_control_rig_pose(cr_obj, systems, shapes):
     cr_obj.data.pose_position = "POSE"
     pbs = cr_obj.pose.bones
     if "FK_Root" in pbs:
-        _assign_shape(pbs["FK_Root"], shapes["root"], False, 50.0)
-        _bone_color(pbs["FK_Root"], dracula.GREEN)
+        _assign_shape(pbs["FK_Root"], shapes["square"], False, 50.0)
+        _bone_color(pbs["FK_Root"], dracula.PURPLE)
     for s in systems:
         t = s["type"]
         if t == "spine":
@@ -480,6 +567,8 @@ def setup_control_rig_pose(cr_obj, systems, shapes):
             _setup_leg_pose(cr_obj, s, shapes)
         elif t == "head":
             _setup_head_pose(cr_obj, shapes)
+        elif t == "finger":
+            _setup_finger_pose(cr_obj, s, shapes)
 
 
 def _add_copy_transforms(skel_obj, cr_obj, def_bone, ctrl_bone):
@@ -504,10 +593,9 @@ def wire_deform_constraints(skel_obj, cr_obj, systems):
         if t == "spine":
             if s.get("pelvis"):
                 log.append(_add_copy_transforms(skel_obj, cr_obj, s["pelvis"], "FK_Pelvis"))
-            chain = s.get("vertebrae") or []
-            for i, name in enumerate(chain):
-                ctrl = "FK_Chest" if i == len(chain) - 1 else f"FK_{name}"
-                log.append(_add_copy_transforms(skel_obj, cr_obj, name, ctrl))
+            vertebrae = s.get("vertebrae") or []
+            for i, name in enumerate(vertebrae):
+                log.append(_add_copy_transforms(skel_obj, cr_obj, name, _spine_ctrl_name(i, len(vertebrae))))
         elif t == "arm":
             side = s["side"]
             if s.get("shoulder"):
@@ -519,15 +607,13 @@ def wire_deform_constraints(skel_obj, cr_obj, systems):
             ):
                 if s.get(def_key):
                     log.append(_add_copy_transforms(skel_obj, cr_obj, s[def_key], ctrl))
-            for chain in (s.get("fingers") or {}).values():
-                for bone_name in chain:
-                    log.append(_add_copy_transforms(skel_obj, cr_obj, bone_name, f"FK_{bone_name}"))
         elif t == "leg":
             side = s["side"]
             for def_key, ctrl in (
                 ("upper_leg", f"IK_UpperLeg.{side}"),
                 ("lower_leg", f"IK_LowerLeg.{side}"),
                 ("foot", f"IK_Foot.{side}"),
+                ("toe", f"FK_Toe.{side}"),
             ):
                 if s.get(def_key):
                     log.append(_add_copy_transforms(skel_obj, cr_obj, s[def_key], ctrl))
@@ -535,6 +621,9 @@ def wire_deform_constraints(skel_obj, cr_obj, systems):
             if s.get("neck"):
                 log.append(_add_copy_transforms(skel_obj, cr_obj, s["neck"], "FK_Neck"))
             log.append(_add_copy_transforms(skel_obj, cr_obj, s["head"], "FK_Head"))
+        elif t == "finger":
+            for i, bone_name in enumerate(s.get("chain") or []):
+                log.append(_add_copy_transforms(skel_obj, cr_obj, bone_name, _finger_ctrl_name(s, i)))
     return log
 
 
