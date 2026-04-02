@@ -23,7 +23,7 @@ arm
 
 leg
   Required: upper_leg, lower_leg, foot
-  Optional: toe — set to null if absent
+  Optional: toe — the ball or toe bone at the end of the foot. Set to null only if truly absent. IMPORTANT: Most rigs have a toe bone — look carefully before setting null.
   Also: side (e.g. "L", "R"), parent (name of the deform bone this leg attaches to)
 
 head
@@ -51,7 +51,7 @@ shoulder   = shoulder, clavicle, collar, collarbone
 upper_leg  = upper leg, thigh, femur
 lower_leg  = lower leg, shin, calf
 foot       = foot, ankle
-toe        = toe, ball, toebase, toe base
+toe        = toe, toebase, toe_base, toe base, ball, ball of foot, foot_toe, toes
 vertebrae  = spine, back, torso bones between pelvis and neck
 
 ---
