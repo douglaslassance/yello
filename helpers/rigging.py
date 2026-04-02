@@ -34,7 +34,12 @@ def classify_bones(bone_names):
         data = json.loads(raw or "{}")
         systems = _parse_systems(data, bone_names)
         if systems:
-            summary = [f"{s['type']}.{s.get('side', s.get('name', '-'))}" for s in systems]
+            summary = []
+            for s in systems:
+                label = f"{s['type']}.{s.get('side', s.get('name', '-'))}"
+                if s["type"] == "leg":
+                    label += f"(toe={'yes' if s.get('toe') else 'NO'})"
+                summary.append(label)
             return systems, f"Identified: {summary}", raw
         return None, f"Could not parse systems from Ollama response: {raw[:300]}", raw
     except urllib.error.HTTPError as exc:
@@ -247,6 +252,34 @@ def create_square_shape(name):
         ([(0, 0, -1), (0, 0, 1)], False),
     ])
 
+
+
+def _calc_pole_angle(upper_pb, lower_pb, pole_pos):
+    """Calculate the IK pole_angle that keeps the leg in its rest pose.
+
+    Projects both the bone's Z axis (roll direction) and the direction to the pole
+    onto the plane perpendicular to the full chain axis, then returns the signed
+    angle between them. Setting this on the IK constraint compensates for Blender's
+    default pole orientation so the leg does not move from rest when the rig is built.
+    """
+    chain = (lower_pb.bone.tail_local - upper_pb.bone.head_local).normalized()
+
+    to_pole = pole_pos - upper_pb.bone.head_local
+    to_pole -= to_pole.dot(chain) * chain
+    if to_pole.length < 1e-4:
+        return 0.0
+    to_pole = to_pole.normalized()
+
+    bone_z = upper_pb.bone.z_axis.copy()
+    bone_z -= bone_z.dot(chain) * chain
+    if bone_z.length < 1e-4:
+        return 0.0
+    bone_z = bone_z.normalized()
+
+    angle = math.acos(max(-1.0, min(1.0, bone_z.dot(to_pole))))
+    if bone_z.cross(to_pole).dot(chain) < 0:
+        angle = -angle
+    return angle
 
 
 def _calc_pole_pos(upper_head, upper_tail, lower_tail):
@@ -510,19 +543,24 @@ def _setup_leg_pose(cr_obj, system, shapes):
     pbs, s = cr_obj.pose.bones, system["side"]
     color = _side_color(s)
     if f"IK_Foot.{s}" in pbs:
-        _assign_shape(pbs[f"IK_Foot.{s}"], shapes["box"], False, 1.8)
+        _assign_shape(pbs[f"IK_Foot.{s}"], shapes["box"], False, 10.0)
         _bone_color(pbs[f"IK_Foot.{s}"], color)
     if f"FK_Toe.{s}" in pbs:
-        _assign_shape(pbs[f"FK_Toe.{s}"], shapes["box"], False, 0.8)
+        _assign_shape(pbs[f"FK_Toe.{s}"], shapes["box"], False, 6.0)
         _bone_color(pbs[f"FK_Toe.{s}"], color)
     if f"Pole_Knee.{s}" in pbs:
-        _assign_shape(pbs[f"Pole_Knee.{s}"], shapes["sphere"], False, 1.05)
+        _assign_shape(pbs[f"Pole_Knee.{s}"], shapes["sphere"], False, 4.0)
         _bone_color(pbs[f"Pole_Knee.{s}"], color)
     if f"IK_LowerLeg.{s}" in pbs:
-        c = pbs[f"IK_LowerLeg.{s}"].constraints.new("IK")
+        upper_pb = pbs.get(f"IK_UpperLeg.{s}")
+        lower_pb = pbs[f"IK_LowerLeg.{s}"]
+        pole_pb = pbs.get(f"Pole_Knee.{s}")
+        c = lower_pb.constraints.new("IK")
         c.target, c.subtarget = cr_obj, f"IK_Foot.{s}"
         c.pole_target, c.pole_subtarget = cr_obj, f"Pole_Knee.{s}"
-        c.pole_angle, c.chain_count, c.use_stretch = 0.0, 2, False
+        c.chain_count, c.use_stretch = 2, False
+        if upper_pb and pole_pb:
+            c.pole_angle = _calc_pole_angle(upper_pb, lower_pb, pole_pb.bone.head_local)
     for name in (f"IK_UpperLeg.{s}", f"IK_LowerLeg.{s}"):
         if name in pbs:
             pbs[name].bone.hide = True
