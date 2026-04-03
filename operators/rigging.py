@@ -10,7 +10,7 @@ from ..helpers import rigging
 
 class AlignBoneRollsOperator(bpy.types.Operator):
     bl_idname = "armature.align_bone_rolls"
-    bl_label = "Align bone rolls"
+    bl_label = "Align Bone Rolls"
     bl_description = "Align bone rolls to the plane formed by the angle between bones."
 
     @classmethod
@@ -59,7 +59,7 @@ class AlignBoneRollsOperator(bpy.types.Operator):
 
 class AlignBonesOperator(bpy.types.Operator):
     bl_idname = "armature.align_bones"
-    bl_label = "Align bones"
+    bl_label = "Align Bones"
     bl_description = "Align bones to the plane formed by the angle between the first and last bone of a chain."
 
     @classmethod
@@ -95,7 +95,7 @@ class AlignBonesOperator(bpy.types.Operator):
 
 class CreateBoneAlignedObjectOperator(bpy.types.Operator):
     bl_idname = "pose.create_bone_aligned_object"
-    bl_label = "Create bone aligned object"
+    bl_label = "Create Bone Aligned Object"
     bl_description = "Creates an empty object aligned to the active bone in pose mode."
 
     @classmethod
@@ -125,7 +125,7 @@ class CreateBoneAlignedObjectOperator(bpy.types.Operator):
 
 class DistributeBonesEvenlyOperator(bpy.types.Operator):
     bl_idname = "armature.distribute_bones_evenly"
-    bl_label = "Distribute bones evenly"
+    bl_label = "Distribute Bones Evenly"
     bl_description = "Straighen a chain and distribute bone length evenly."
 
     @classmethod
@@ -166,7 +166,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
     _count_key = "yello_generate_twist_bones_count"
 
     bl_idname = "armature.generate_twist_bones"
-    bl_label = "Generate twist bones"
+    bl_label = "Generate Twist Bones"
     bl_description = "Generate twist bone chains parented to the selected bones."
 
     count: bpy.props.IntProperty(name="Count", default=3)
@@ -226,7 +226,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
 
 class GenerateBlendBoneOperator(bpy.types.Operator):
     bl_idname = "armature.generate_blend_bone"
-    bl_label = "Generate blend bone"
+    bl_label = "Generate Blend Bone"
     bl_description = (
         "Generate intermediary bone rotated halfway between two selected bones."
     )
@@ -291,7 +291,7 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
 
 class BuildControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.build_control_rig"
-    bl_label = "Build control rig"
+    bl_label = "Build Control Rig"
     bl_description = (
         "Detect arm/leg bones by name and build an IK/FK control rig armature. "
         "Deform bones are wired via Copy Transforms driven by an ik_fk property."
@@ -402,7 +402,7 @@ class BuildControlRigOperator(bpy.types.Operator):
 
 class RemoveControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.remove_control_rig"
-    bl_label = "Remove control rig"
+    bl_label = "Remove Control Rig"
     bl_description = "Remove the control rig and all constraints from the skeleton armature."
 
     @classmethod
@@ -450,7 +450,7 @@ class RemoveControlRigOperator(bpy.types.Operator):
 
 class NormalizeBoneRollOperator(bpy.types.Operator):
     bl_idname = "armature.normalize_bone_roll"
-    bl_label = "Normalize bone roll"
+    bl_label = "Normalize Bone Roll"
     bl_description = "Set the roll closest to zero."
 
     @classmethod

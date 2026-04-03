@@ -2,21 +2,18 @@
 from bpy.types import Panel
 
 
-class YelloIoView3dPanel(Panel):
+class YelloFileView3dPanel(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_label = "I/O"
+    bl_label = "File"
     bl_category = "Yello"
+    bl_order = 0
 
     def draw(self, context):
         layout = self.layout
         col = layout.column(align=True)
         col.operator("object.make_writable", icon="OUTLINER_DATA_GP_LAYER")
         col.operator("object.open_containing_folder", icon="FILE_FOLDER")
-        col.operator("object.export_mesh", icon="MESH_MONKEY")
-        col.operator("object.export_meshes", icon="COMMUNITY")
-        col.operator("object.export_animation", icon="ONIONSKIN_ON")
-        col.operator("object.export_animated_mesh", icon="MOD_SOFT")
 
 
 class YelloRiggingView3dPanel(Panel):
@@ -24,6 +21,7 @@ class YelloRiggingView3dPanel(Panel):
     bl_region_type = "UI"
     bl_label = "Rigging"
     bl_category = "Yello"
+    bl_order = 2
 
     def draw(self, context):
         layout = self.layout
@@ -40,11 +38,27 @@ class YelloRiggingView3dPanel(Panel):
         col.operator("armature.remove_control_rig", icon="X")
 
 
+class YelloAnimationView3dPanel(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_label = "Animation"
+    bl_category = "Yello"
+    bl_order = 3
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+        col.operator("object.export_animation", icon="ONIONSKIN_ON")
+        col.operator("object.export_animated_mesh", icon="MOD_SOFT")
+        col.operator("armature.export_control_rig_animations", icon="RENDER_ANIMATION")
+
+
 class YelloShadingView3dPanel(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_label = "Shading"
     bl_category = "Yello"
+    bl_order = 4
 
     def draw(self, context):
         layout = self.layout
@@ -59,8 +73,12 @@ class YelloModelingView3dPanel(Panel):
     bl_region_type = "UI"
     bl_label = "Modeling"
     bl_category = "Yello"
+    bl_order = 1
 
     def draw(self, context):
         layout = self.layout
         col = layout.column(align=True)
         col.operator("object.slice_meshes_with_collection", icon="MOD_BUILD")
+        col.separator()
+        col.operator("object.export_mesh", icon="MESH_MONKEY")
+        col.operator("object.export_meshes", icon="COMMUNITY")

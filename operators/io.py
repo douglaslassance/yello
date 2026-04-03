@@ -8,7 +8,7 @@ from .. import functions
 
 class ExportMeshOperator(bpy.types.Operator):
     bl_idname = "object.export_mesh"
-    bl_label = "Export mesh"
+    bl_label = "Export Mesh"
     bl_description = "Export selected meshes and armatures to a single FBX"
 
     file_format: bpy.props.EnumProperty(
@@ -72,8 +72,8 @@ class ExportMeshOperator(bpy.types.Operator):
 
 class ExportMeshesOperator(bpy.types.Operator):
     bl_idname = "object.export_meshes"
-    bl_label = "Export meshes"
-    bl_description = "Export selected meshes to individual FBX files"
+    bl_label = "Export Meshes"
+    bl_description = "Export selected meshes to individual files"
 
     prefix: bpy.props.StringProperty(
         name="Prefix",
@@ -130,8 +130,8 @@ class ExportMeshesOperator(bpy.types.Operator):
 
 class ExportAnimationOperator(bpy.types.Operator):
     bl_idname = "object.export_animation"
-    bl_label = "Export animation"
-    bl_description = "Export mesh only as an alembic"
+    bl_label = "Export Animation"
+    bl_description = "Export selection to animated FBX."
 
     @classmethod
     def poll(cls, context):
@@ -166,8 +166,8 @@ class ExportAnimationOperator(bpy.types.Operator):
 
 class ExportAnimatedMeshOperator(bpy.types.Operator):
     bl_idname = "object.export_animated_mesh"
-    bl_label = "Export animated mesh"
-    bl_description = "Export armature only as FBX"
+    bl_label = "Export Animated Mesh"
+    bl_description = "Export selected animated meshes to Alembic."
 
     @classmethod
     def poll(cls, context):
@@ -191,9 +191,115 @@ class ExportAnimatedMeshOperator(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class ExportControlRigAnimationsOperator(bpy.types.Operator):
+    bl_idname = "armature.export_control_rig_animations"
+    bl_label = "Export Control Rig Animations"
+    bl_description = (
+        "Bake all actions from the control rig onto the deform skeleton "
+        "and export the result as a GLB alongside the current file."
+    )
+
+    @classmethod
+    def _find_cr(cls):
+        """Return the first ControlRig armature that has a matching deform skeleton."""
+        for obj in bpy.data.objects:
+            if obj.type == "ARMATURE" and obj.name.endswith("_ControlRig"):
+                skel = bpy.data.objects.get(obj.name[: -len("_ControlRig")])
+                if skel is not None:
+                    return obj, skel
+        return None, None
+
+    @classmethod
+    def poll(cls, context):
+        if not bpy.data.filepath:
+            return False
+        cr_obj, _ = cls._find_cr()
+        return cr_obj is not None
+
+    def execute(self, context):
+        cr_obj, skel_obj = self._find_cr()
+        if cr_obj is None:
+            self.report({"ERROR"}, "No control rig found in the scene.")
+            return {"CANCELLED"}
+
+        actions = list(bpy.data.actions)
+        if not actions:
+            self.report({"WARNING"}, "No actions to export.")
+            return {"CANCELLED"}
+
+        skinned_meshes = [
+            obj
+            for obj in bpy.data.objects
+            if obj.type == "MESH"
+            and any(
+                m.type == "ARMATURE" and m.object == skel_obj for m in obj.modifiers
+            )
+        ]
+
+        skel_obj.hide_viewport = False
+        skel_obj.hide_set(False)
+
+        original_cr_action = (
+            cr_obj.animation_data.action if cr_obj.animation_data else None
+        )
+
+        if skel_obj.animation_data is None:
+            skel_obj.animation_data_create()
+
+        baked_actions = []
+
+        for action in actions:
+            if cr_obj.animation_data is None:
+                cr_obj.animation_data_create()
+            cr_obj.animation_data.action = action
+
+            frame_start = int(action.frame_range[0])
+            frame_end = int(action.frame_range[1])
+
+            context.view_layer.objects.active = skel_obj
+            bpy.ops.object.mode_set(mode="POSE")
+            bpy.ops.nla.bake(
+                frame_start=frame_start,
+                frame_end=frame_end,
+                only_selected=False,
+                visual_keying=True,
+                clear_constraints=False,
+                use_current_action=False,
+                bake_types={"POSE"},
+            )
+            bpy.ops.object.mode_set(mode="OBJECT")
+
+            if skel_obj.animation_data and skel_obj.animation_data.action:
+                baked = skel_obj.animation_data.action
+                baked.name = action.name
+                baked_actions.append(baked)
+                track = skel_obj.animation_data.nla_tracks.new()
+                track.name = action.name
+                track.strips.new(action.name, frame_start, baked)
+                skel_obj.animation_data.action = None
+
+        context.view_layer.objects.active = cr_obj
+
+        filename = os.path.splitext(bpy.data.filepath)[0] + ".glb"
+        functions.export_gltf([skel_obj] + skinned_meshes, filename)
+
+        for track in list(skel_obj.animation_data.nla_tracks):
+            skel_obj.animation_data.nla_tracks.remove(track)
+        for baked in baked_actions:
+            bpy.data.actions.remove(baked)
+
+        if cr_obj.animation_data:
+            cr_obj.animation_data.action = original_cr_action
+
+        skel_obj.hide_set(True)
+
+        self.report({"INFO"}, f"Exported {len(baked_actions)} action(s) to {filename}")
+        return {"FINISHED"}
+
+
 class MakeWritableOperator(bpy.types.Operator):
     bl_idname = "object.make_writable"
-    bl_label = "Make writable"
+    bl_label = "Make Writable"
     bl_description = "Perform a Gitarmony make writable on the current file"
 
     @classmethod
@@ -207,7 +313,7 @@ class MakeWritableOperator(bpy.types.Operator):
 
 class OpenContainingFolderOperator(bpy.types.Operator):
     bl_idname = "object.open_containing_folder"
-    bl_label = "Open containing folder"
+    bl_label = "Open Containing Folder"
 
     @classmethod
     def poll(cls, context):
