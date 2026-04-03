@@ -437,7 +437,7 @@ def _build_leg_system(ebs, system, bd, parent_eb):
         foot_dir_horiz = foot_dir_horiz.normalized()
     else:
         foot_dir_horiz = mathutils.Vector((0.0, 1.0, 0.0))
-    foot_horiz_tail = f_data["head"] + foot_dir_horiz * foot_len
+    foot_horiz_tail = f_data["head"] - foot_dir_horiz * foot_len
     foot_eb = _eb(ebs, f"IK_Foot.{s}", f_data["head"], foot_horiz_tail, 0.0, root_eb)
     ball_eb = _eb(ebs, f"Pivot_Ball.{s}", ball_pos, ball_pos + pivot_up, 0.0, foot_eb)
     ankle_eb = _eb(ebs, f"IK_Ankle.{s}", f_data["head"], f_data["tail"], f_data["roll"], ball_eb)
