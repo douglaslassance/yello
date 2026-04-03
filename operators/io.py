@@ -1,7 +1,9 @@
 import os
+import select
 import subprocess
 import platform
 import bpy
+from ..contexts import SelectionContext
 
 from .. import functions
 
@@ -217,8 +219,8 @@ class ExportControlRigAnimationsOperator(bpy.types.Operator):
         return cr_obj is not None
 
     def execute(self, context):
-        cr_obj, skel_obj = self._find_cr()
-        if cr_obj is None:
+        control_rig, skeleton = self._find_cr()
+        if control_rig is None:
             self.report({"ERROR"}, "No control rig found in the scene.")
             return {"CANCELLED"}
 
@@ -232,101 +234,128 @@ class ExportControlRigAnimationsOperator(bpy.types.Operator):
             for obj in bpy.data.objects
             if obj.type == "MESH"
             and any(
-                m.type == "ARMATURE" and m.object == skel_obj for m in obj.modifiers
+                m.type == "ARMATURE" and m.object == skeleton for m in obj.modifiers
             )
         ]
 
-        skel_obj.hide_viewport = False
-        skel_obj.hide_set(False)
+        skeleton.hide_viewport = False
+        skeleton.hide_set(False)
 
-        original_cr_action = (
-            cr_obj.animation_data.action if cr_obj.animation_data else None
+        initial_control_rig_action = (
+            control_rig.animation_data.action if control_rig.animation_data else None
         )
+        initial_active = context.view_layer.objects.active
+        initial_selected = list(context.selected_objects)
 
-        if skel_obj.animation_data is None:
-            skel_obj.animation_data_create()
+        if skeleton.animation_data is None:
+            skeleton.animation_data_create()
 
         baked_actions = []
-        renamed_sources = []
+        source_actions = []
 
         try:
-            for action in actions:
-                if cr_obj.animation_data is None:
-                    cr_obj.animation_data_create()
+            # for action in actions:
+            #     if control_rig.animation_data is None:
+            #         control_rig.animation_data_create()
 
-                original_name = action.name
-                action.name = f"__src_{original_name}"
-                renamed_sources.append((action, original_name))
+            #     original_name = action.name
+            #     action.name = f"__src_{original_name}"
+            #     source_actions.append((action, original_name))
 
-                cr_obj.animation_data.action = action
-                skel_obj.animation_data.action = None
+            #     control_rig.animation_data.action = action
+            #     skeleton.animation_data.action = None
 
-                frame_start = int(action.frame_range[0])
-                frame_end = int(action.frame_range[1])
+            #     frame_start = int(action.frame_range[0])
+            #     frame_end = int(action.frame_range[1])
 
-                context.view_layer.objects.active = skel_obj
-                bpy.ops.object.mode_set(mode="POSE")
-                bpy.ops.nla.bake(
-                    frame_start=frame_start,
-                    frame_end=frame_end,
-                    only_selected=False,
-                    visual_keying=True,
-                    clear_constraints=False,
-                    use_current_action=False,
-                    bake_types={"POSE"},
+            #     context.view_layer.objects.active = skeleton
+            #     bpy.ops.object.mode_set(mode="POSE")
+            #     bpy.ops.nla.bake(
+            #         frame_start=frame_start,
+            #         frame_end=frame_end,
+            #         only_selected=False,
+            #         visual_keying=True,
+            #         clear_constraints=False,
+            #         use_current_action=False,
+            #         bake_types={"POSE"},
+            #     )
+            #     bpy.ops.object.mode_set(mode="OBJECT")
+
+            #     if skeleton.animation_data and skeleton.animation_data.action:
+            #         baked = skeleton.animation_data.action
+            #         baked.name = original_name
+            #         baked_actions.append(baked)
+            #         track = skeleton.animation_data.nla_tracks.new()
+            #         track.name = original_name
+            #         track.strips.new(original_name, frame_start, baked)
+            #         skeleton.animation_data.action = None
+
+            # context.view_layer.objects.active = control_rig
+
+            # for obj in context.selected_objects:
+            #     obj.select_set(False)
+            # skeleton.select_set(True)
+            # for mesh in skinned_meshes:
+            #     mesh.select_set(True)
+
+            with SelectionContext():
+                filename = os.path.splitext(bpy.data.filepath)[0] + ".glb"
+                functions.make_writable(filename)
+                functions.select_objects([skeleton])
+                bpy.ops.export_scene.gltf(
+                    filepath=filename,
+                    export_format="GLB",
+                    use_selection=True,
+                    export_apply=True,
+                    export_def_bones=True,
+                    export_animations=True,
+                    export_bake_animation=True,
+                    export_animation_mode="ACTIONS",
+                    export_reset_pose_bones=True,
+                    export_armature_object_remove=True,
                 )
-                bpy.ops.object.mode_set(mode="OBJECT")
-
-                if skel_obj.animation_data and skel_obj.animation_data.action:
-                    baked = skel_obj.animation_data.action
-                    baked.name = original_name
-                    baked_actions.append(baked)
-                    track = skel_obj.animation_data.nla_tracks.new()
-                    track.name = original_name
-                    track.strips.new(original_name, frame_start, baked)
-                    skel_obj.animation_data.action = None
-
-            context.view_layer.objects.active = cr_obj
-
-            for obj in context.selected_objects:
-                obj.select_set(False)
-            skel_obj.select_set(True)
-            for mesh in skinned_meshes:
-                mesh.select_set(True)
-
-            filename = os.path.splitext(bpy.data.filepath)[0] + ".glb"
-            functions.make_writable(filename)
-            bpy.ops.export_scene.gltf(
-                filepath=filename,
-                export_format="GLB",
-                use_selection=True,
-                export_apply=True,
-                export_def_bones=True,
-                export_animations=True,
-                export_animation_mode="NLA_TRACKS",
-                export_reset_pose_bones=True,
-                export_armature_object_remove=True,
-                export_bake_animation=True,
-            )
-
-            self.report(
-                {"INFO"}, f"Exported {len(baked_actions)} action(s) to {filename}"
-            )
 
         finally:
-            for action, original_name in renamed_sources:
-                action.name = original_name
-            if skel_obj.animation_data:
-                for track in list(skel_obj.animation_data.nla_tracks):
-                    skel_obj.animation_data.nla_tracks.remove(track)
-                skel_obj.animation_data.action = None
-            for baked in baked_actions:
-                bpy.data.actions.remove(baked)
-            if cr_obj.animation_data:
-                cr_obj.animation_data.action = original_cr_action
-            skel_obj.hide_set(True)
+            pass
+            # self._cleanup(
+            #     control_rig,
+            #     skeleton,
+            #     source_actions,
+            #     baked_actions,
+            #     initial_control_rig_action,
+            #     initial_active,
+            #     initial_selected,
+            # )
 
         return {"FINISHED"}
+
+    def _cleanup(
+        self,
+        control_rig,
+        skeleton,
+        source_actions,
+        baked_actions,
+        initial_control_rig_action,
+        initial_active,
+        initial_selected,
+    ):
+        """Clean up after exporting control rig animations."""
+        for action, original_name in source_actions:
+            action.name = original_name
+        if skeleton.animation_data:
+            for track in list(skeleton.animation_data.nla_tracks):
+                skeleton.animation_data.nla_tracks.remove(track)
+            skeleton.animation_data.action = None
+        for baked in baked_actions:
+            bpy.data.actions.remove(baked)
+        if control_rig.animation_data:
+            control_rig.animation_data.action = initial_control_rig_action
+        skeleton.hide_set(True)
+        for obj in bpy.context.selected_objects:
+            obj.select_set(False)
+        for obj in initial_selected:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = initial_active
 
 
 class MakeWritableOperator(bpy.types.Operator):
