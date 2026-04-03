@@ -382,7 +382,8 @@ def _build_spine_system(ebs, system, bd, root_eb):
         d = bd[system["pelvis"]]
         bone_len = (d["tail"] - d["head"]).length
         pelvis_eb = _eb(ebs, "FK_Pelvis", d["head"], d["tail"], d["roll"], root_eb, False)
-        hips_tail = d["head"] + mathutils.Vector((0.0, 0.0, -max(bone_len * 0.5, 0.05)))
+        direction = (d["tail"] - d["head"]).normalized()
+        hips_tail = d["head"] + direction * max(bone_len * 0.5, 0.05)
         hips_eb = _eb(ebs, "FK_Hips", d["head"], hips_tail, d["roll"], pelvis_eb, False)
         deform_to_ctrl[system["pelvis"]] = pelvis_eb
 
@@ -509,10 +510,10 @@ def _setup_spine_pose(cr_obj, system, shapes):
     """Pelvis and vertebrae as purple circles (central controls)."""
     pbs = cr_obj.pose.bones
     if "FK_Pelvis" in pbs:
-        _assign_shape(pbs["FK_Pelvis"], shapes["circle"], True, (3.0, 3.0, 1.5))
+        _assign_shape(pbs["FK_Pelvis"], shapes["circle"], True, (2.0, 2.0, 2.0))
         _bone_color(pbs["FK_Pelvis"], dracula.PURPLE)
     if "FK_Hips" in pbs:
-        _assign_shape(pbs["FK_Hips"], shapes["circle"], True, (2.0, 2.0, 1.0))
+        _assign_shape(pbs["FK_Hips"], shapes["circle"], True, 3.5)
         _bone_color(pbs["FK_Hips"], dracula.PURPLE)
     chain = system.get("vertebrae") or []
     for i in range(len(chain)):
@@ -527,7 +528,7 @@ def _setup_arm_pose(cr_obj, system, shapes):
     pbs, s = cr_obj.pose.bones, system["side"]
     color = _side_color(s)
     if f"FK_Shoulder.{s}" in pbs:
-        _assign_shape(pbs[f"FK_Shoulder.{s}"], shapes["circle"], True, 0.3)
+        _assign_shape(pbs[f"FK_Shoulder.{s}"], shapes["circle"], True, 1.2)
         _bone_color(pbs[f"FK_Shoulder.{s}"], color)
     for name in (f"FK_UpperArm.{s}", f"FK_Hand.{s}"):
         if name in pbs:
@@ -543,10 +544,10 @@ def _setup_leg_pose(cr_obj, system, shapes):
     pbs, s = cr_obj.pose.bones, system["side"]
     color = _side_color(s)
     if f"IK_Foot.{s}" in pbs:
-        _assign_shape(pbs[f"IK_Foot.{s}"], shapes["box"], False, 10.0)
+        _assign_shape(pbs[f"IK_Foot.{s}"], shapes["sphere"], False, 10.0)
         _bone_color(pbs[f"IK_Foot.{s}"], color)
     if f"FK_Toe.{s}" in pbs:
-        _assign_shape(pbs[f"FK_Toe.{s}"], shapes["box"], False, 6.0)
+        _assign_shape(pbs[f"FK_Toe.{s}"], shapes["sphere"], False, 6.0)
         _bone_color(pbs[f"FK_Toe.{s}"], color)
     if f"Pole_Knee.{s}" in pbs:
         _assign_shape(pbs[f"Pole_Knee.{s}"], shapes["sphere"], False, 4.0)
@@ -573,7 +574,7 @@ def _setup_head_pose(cr_obj, shapes):
         _assign_shape(pbs["FK_Neck"], shapes["circle"], True, 0.6)
         _bone_color(pbs["FK_Neck"], dracula.PURPLE)
     if "FK_Head" in pbs:
-        _assign_shape(pbs["FK_Head"], shapes["circle"], True, 0.8)
+        _assign_shape(pbs["FK_Head"], shapes["circle"], True, (0.6, 0.8, 0.8))
         _bone_color(pbs["FK_Head"], dracula.PURPLE)
 
 
@@ -584,7 +585,7 @@ def _setup_finger_pose(cr_obj, system, shapes):
     for i in range(len(system.get("chain") or [])):
         ctrl = _finger_ctrl_name(system, i)
         if ctrl in pbs:
-            _assign_shape(pbs[ctrl], shapes["circle"], True, 0.3)
+            _assign_shape(pbs[ctrl], shapes["circle"], True, 0.5 if i == 0 else 0.3)
             _bone_color(pbs[ctrl], color)
 
 
