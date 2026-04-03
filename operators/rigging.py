@@ -349,6 +349,8 @@ class BuildControlRigOperator(bpy.types.Operator):
             "diamond": rigging.get_or_create_shape("Shape_Diamond", rigging.create_diamond_shape),
             "sphere": rigging.get_or_create_shape("Shape_Sphere", rigging.create_sphere_shape),
             "square": rigging.get_or_create_shape("Shape_Square", rigging.create_square_shape),
+            "master": rigging.get_or_load_blend_shape("base_controller.034"),
+            "pelvis_hips": rigging.get_or_load_blend_shape("other_controller.003"),
         }
 
         cr_name = skel_obj.name + "_ControlRig"
@@ -364,7 +366,8 @@ class BuildControlRigOperator(bpy.types.Operator):
         cr_obj.matrix_world = skel_obj.matrix_world.copy()
 
         for shape in shapes.values():
-            rigging.parent_to_cr(shape, cr_obj)
+            if shape is not None:
+                rigging.parent_to_cr(shape, cr_obj)
 
         context.view_layer.objects.active = cr_obj
         bpy.ops.object.mode_set(mode="EDIT")
