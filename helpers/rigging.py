@@ -10,6 +10,7 @@ from . import dracula
 from . import ollama
 
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+_ASSETS_DIR = Path(__file__).parent.parent / "assets"
 
 
 def _load_prompt(filename):
@@ -175,6 +176,24 @@ def get_or_create_shape(name, create_fn):
             return obj
         bpy.data.objects.remove(obj, do_unlink=True)
     return create_fn(name)
+
+
+def get_or_load_blend_shape(name):
+    """Return or import a named mesh object from the bundled shapes.blend file.
+
+    The caller is responsible for parenting the shape to the CR armature.
+    Returns None if the object cannot be found in the blend file.
+    """
+    obj = bpy.data.objects.get(name)
+    if obj is not None:
+        if obj.type == "MESH":
+            return obj
+        bpy.data.objects.remove(obj, do_unlink=True)
+    blend_path = _ASSETS_DIR / "shapes.blend"
+    with bpy.data.libraries.load(str(blend_path), link=False) as (data_from, data_to):
+        if name in data_from.objects:
+            data_to.objects = [name]
+    return bpy.data.objects.get(name)
 
 
 def parent_to_cr(obj, cr_obj):
@@ -507,11 +526,12 @@ def build_control_bones(cr_arm_data, systems, bone_data):
 def _setup_spine_pose(cr_obj, system, shapes):
     """Pelvis, hips, and chest as purple circles."""
     pbs = cr_obj.pose.bones
+    pelvis_hips_shape = shapes.get("pelvis_hips") or shapes["circle"]
     if "Pelvis" in pbs:
-        _assign_shape(pbs["Pelvis"], shapes["circle"], True, (2.0, 2.0, 2.0))
+        _assign_shape(pbs["Pelvis"], pelvis_hips_shape, True, (2.0, 2.0, 2.0))
         _bone_color(pbs["Pelvis"], dracula.PURPLE)
     if "Hips" in pbs:
-        _assign_shape(pbs["Hips"], shapes["circle"], True, 3.5)
+        _assign_shape(pbs["Hips"], pelvis_hips_shape, True, 3.5)
         _bone_color(pbs["Hips"], dracula.PURPLE)
     if "Chest" in pbs:
         _assign_shape(pbs["Chest"], shapes["circle"], True, 1.6)
@@ -584,7 +604,7 @@ def setup_control_rig_pose(cr_obj, systems, shapes):
     cr_obj.data.pose_position = "POSE"
     pbs = cr_obj.pose.bones
     if "World" in pbs:
-        _assign_shape(pbs["World"], shapes["square"], False, 50.0)
+        _assign_shape(pbs["World"], shapes.get("master") or shapes["square"], False, 50.0)
         _bone_color(pbs["World"], dracula.PURPLE)
     for s in systems:
         t = s["type"]
