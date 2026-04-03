@@ -370,6 +370,7 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode="POSE")
         rigging.setup_control_rig_pose(cr_obj, systems, shapes)
+        rigging.setup_spine_splineik(cr_obj, systems, context, bone_data)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         context.view_layer.objects.active = skel_obj
@@ -428,6 +429,9 @@ class RemoveControlRigOperator(bpy.types.Operator):
         rigging.cleanup_existing_cr(skel_obj)
         bpy.ops.object.mode_set(mode="OBJECT")
 
+        spine_curve_name = cr_name + "_SpineCurve"
+        if spine_curve_name in bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[spine_curve_name], do_unlink=True)
         if cr_name in bpy.data.objects:
             bpy.data.objects.remove(bpy.data.objects[cr_name], do_unlink=True)
             self.report({"INFO"}, f"Removed control rig: {cr_name}")
