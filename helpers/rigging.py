@@ -358,21 +358,13 @@ def _finger_ctrl_name(system, index):
     return f"FK_{system['name'].capitalize()}.{index + 1:03d}.{system['side']}"
 
 
-def _spine_ctrl_name(index, total):
-    """Return the consistent control bone name for a spine vertebra at a given index.
-
-    The last vertebra in the chain is always named FK_Chest.
-    """
-    if index == total - 1:
-        return "FK_Chest"
-    return f"FK_Spine.{index + 1:03d}"
-
-
 def _build_spine_system(ebs, system, bd, root_eb):
-    """Build spine control bones.
+    """Build spine FK control bones.
 
-    Returns (hips_eb, chest_eb, deform_to_ctrl) where deform_to_ctrl maps
-    deform bone names to their ctrl edit bones for parent resolution by other systems.
+    Creates FK_Pelvis and FK_Hips at the base and a free FK_Chest at the top.
+    The deform vertebrae are driven by a Spline IK constraint added directly on the
+    skeleton side in wire_deform_constraints — no mechanism bones are needed here.
+    Returns (hips_eb, chest_eb, deform_to_ctrl).
     """
     deform_to_ctrl = {}
     pelvis_eb = None
@@ -387,18 +379,15 @@ def _build_spine_system(ebs, system, bd, root_eb):
         hips_eb = _eb(ebs, "FK_Hips", d["head"], hips_tail, d["roll"], pelvis_eb, False)
         deform_to_ctrl[system["pelvis"]] = pelvis_eb
 
-    spine_root = pelvis_eb or root_eb
-    prev, prev_data = spine_root, None
-    chest_eb = spine_root
-
     chain = [n for n in (system.get("vertebrae") or []) if n in bd]
-    for i, name in enumerate(chain):
-        d = bd[name]
-        ctrl_eb = _eb(ebs, _spine_ctrl_name(i, len(chain)), d["head"], d["tail"], d["roll"], prev,
-                      prev_data is not None and _connected(d["head"], prev_data["tail"]))
-        deform_to_ctrl[name] = ctrl_eb
-        prev, prev_data = ctrl_eb, d
-        chest_eb = ctrl_eb
+    chest_eb = hips_eb or pelvis_eb or root_eb
+
+    if chain:
+        last_d = bd[chain[-1]]
+        spine_dir = (last_d["tail"] - last_d["head"]).normalized()
+        segment_len = (last_d["tail"] - last_d["head"]).length
+        chest_tail = last_d["tail"] + spine_dir * max(segment_len * 0.5, 0.05)
+        chest_eb = _eb(ebs, "FK_Chest", last_d["tail"], chest_tail, last_d["roll"], pelvis_eb or root_eb, False)
 
     return hips_eb, chest_eb, deform_to_ctrl
 
@@ -497,8 +486,7 @@ def build_control_bones(cr_arm_data, systems, bone_data):
             parent_eb = hips_eb or deform_to_ctrl.get(s.get("parent")) or chest_eb
             _build_leg_system(ebs, s, bone_data, parent_eb)
         elif t == "head":
-            parent_eb = deform_to_ctrl.get(s.get("parent")) or chest_eb
-            _build_head_system(ebs, s, bone_data, parent_eb)
+            _build_head_system(ebs, s, bone_data, chest_eb)
 
     for s in systems:
         if s["type"] == "finger":
@@ -507,7 +495,7 @@ def build_control_bones(cr_arm_data, systems, bone_data):
 
 
 def _setup_spine_pose(cr_obj, system, shapes):
-    """Pelvis and vertebrae as purple circles (central controls)."""
+    """Pelvis, hips, and chest as purple circles."""
     pbs = cr_obj.pose.bones
     if "FK_Pelvis" in pbs:
         _assign_shape(pbs["FK_Pelvis"], shapes["circle"], True, (2.0, 2.0, 2.0))
@@ -515,12 +503,9 @@ def _setup_spine_pose(cr_obj, system, shapes):
     if "FK_Hips" in pbs:
         _assign_shape(pbs["FK_Hips"], shapes["circle"], True, 3.5)
         _bone_color(pbs["FK_Hips"], dracula.PURPLE)
-    chain = system.get("vertebrae") or []
-    for i in range(len(chain)):
-        ctrl = _spine_ctrl_name(i, len(chain))
-        if ctrl in pbs:
-            _assign_shape(pbs[ctrl], shapes["circle"], True, 1.25)
-            _bone_color(pbs[ctrl], dracula.PURPLE)
+    if "FK_Chest" in pbs:
+        _assign_shape(pbs["FK_Chest"], shapes["circle"], True, 1.25)
+        _bone_color(pbs["FK_Chest"], dracula.PURPLE)
 
 
 def _setup_arm_pose(cr_obj, system, shapes):
@@ -610,6 +595,89 @@ def setup_control_rig_pose(cr_obj, systems, shapes):
             _setup_finger_pose(cr_obj, s, shapes)
 
 
+def setup_spine_splineik(cr_obj, systems, context, bone_data):
+    """Create the Spline IK curve for the spine, hooked to FK_Hips and FK_Chest.
+
+    The Spline IK constraint itself is added on the deform skeleton side in
+    wire_deform_constraints. Should be called after setup_control_rig_pose while
+    cr_obj is in POSE mode. Returns with cr_obj in POSE mode.
+    """
+    spine_sys = next((s for s in systems if s["type"] == "spine"), None)
+    if spine_sys is None:
+        return
+
+    chain = spine_sys.get("vertebrae") or []
+    if not chain or chain[0] not in bone_data or chain[-1] not in bone_data:
+        return
+
+    mw = cr_obj.matrix_world
+    start_pos = mw @ bone_data[chain[0]]["head"]
+    end_pos = mw @ bone_data[chain[-1]]["tail"]
+
+    curve_name = cr_obj.name + "_SpineCurve"
+    old = bpy.data.objects.get(curve_name)
+    if old:
+        bpy.data.objects.remove(old, do_unlink=True)
+
+    curve_data = bpy.data.curves.new(curve_name, "CURVE")
+    curve_data.dimensions = "3D"
+    curve_data.resolution_u = 12
+    spline = curve_data.splines.new("BEZIER")
+    spline.bezier_points.add(1)
+
+    spine_dir = (end_pos - start_pos).normalized()
+    spine_len = (end_pos - start_pos).length
+
+    p0 = spline.bezier_points[0]
+    p0.co = start_pos
+    p0.handle_left_type = "FREE"
+    p0.handle_right_type = "FREE"
+    p0.handle_left = start_pos - spine_dir * spine_len / 3
+    p0.handle_right = start_pos + spine_dir * spine_len / 3
+
+    p1 = spline.bezier_points[1]
+    p1.co = end_pos
+    p1.handle_left_type = "FREE"
+    p1.handle_right_type = "FREE"
+    p1.handle_left = end_pos - spine_dir * spine_len / 3
+    p1.handle_right = end_pos + spine_dir * spine_len / 3
+
+    curve_obj = bpy.data.objects.new(curve_name, curve_data)
+    for col in cr_obj.users_collection:
+        col.objects.link(curve_obj)
+    curve_obj.hide_render = True
+
+    hook_hips = curve_obj.modifiers.new("Hook_Hips", "HOOK")
+    hook_hips.object = cr_obj
+    hook_hips.subtarget = "FK_Hips"
+
+    hook_chest = curve_obj.modifiers.new("Hook_Chest", "HOOK")
+    hook_chest.object = cr_obj
+    hook_chest.subtarget = "FK_Chest"
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    context.view_layer.objects.active = curve_obj
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    pts = curve_obj.data.splines[0].bezier_points
+    last_i = len(pts) - 1
+    for i, bp in enumerate(pts):
+        bp.select_control_point = (i == 0)
+        bp.select_left_handle = (i == 0)
+        bp.select_right_handle = (i == 0)
+    bpy.ops.object.hook_assign(modifier="Hook_Hips")
+
+    for i, bp in enumerate(pts):
+        bp.select_control_point = (i == last_i)
+        bp.select_left_handle = (i == last_i)
+        bp.select_right_handle = (i == last_i)
+    bpy.ops.object.hook_assign(modifier="Hook_Chest")
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    context.view_layer.objects.active = cr_obj
+    bpy.ops.object.mode_set(mode="POSE")
+
+
 def _add_copy_transforms(skel_obj, cr_obj, def_bone, ctrl_bone):
     pb = skel_obj.pose.bones.get(def_bone)
     if pb is None:
@@ -631,10 +699,25 @@ def wire_deform_constraints(skel_obj, cr_obj, systems):
         t = s["type"]
         if t == "spine":
             if s.get("pelvis"):
-                log.append(_add_copy_transforms(skel_obj, cr_obj, s["pelvis"], "FK_Pelvis"))
+                log.append(_add_copy_transforms(skel_obj, cr_obj, s["pelvis"], "FK_Hips"))
             vertebrae = s.get("vertebrae") or []
-            for i, name in enumerate(vertebrae):
-                log.append(_add_copy_transforms(skel_obj, cr_obj, name, _spine_ctrl_name(i, len(vertebrae))))
+            if vertebrae:
+                curve_name = cr_obj.name + "_SpineCurve"
+                curve_obj = bpy.data.objects.get(curve_name)
+                last_pb = skel_obj.pose.bones.get(vertebrae[-1])
+                if curve_obj and last_pb:
+                    c = last_pb.constraints.new("SPLINE_IK")
+                    c.name = "CR"
+                    c.target = curve_obj
+                    c.chain_count = len(vertebrae)
+                    c.use_chain_offset = False
+                    c.use_even_divisions = False
+                    c.use_curve_radius = False
+                    c.y_scale_mode = "FIT_CURVE"
+                    c.xz_scale_mode = "NONE"
+                    log.append(f"OK SplineIK on {vertebrae[-1]} (chain={len(vertebrae)})")
+                else:
+                    log.append(f"SKIP SplineIK: curve or bone not found")
         elif t == "arm":
             side = s["side"]
             if s.get("shoulder"):
