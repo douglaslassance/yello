@@ -377,8 +377,8 @@ class BuildControlRigOperator(bpy.types.Operator):
         wire_log = rigging.wire_deform_constraints(skel_obj, cr_obj, systems)
         bpy.ops.object.mode_set(mode="OBJECT")
 
-        cr_obj.show_in_front = True
-        cr_arm_data.display_type = "STICK"
+        cr_obj.show_in_front = False
+        cr_arm_data.display_type = "WIRE"
         cr_arm_data.show_bone_custom_shapes = True
         cr_arm_data.show_bone_colors = True
 

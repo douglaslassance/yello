@@ -4,6 +4,7 @@ Bone names:
 Return ONLY a JSON object with a "systems" array.
 All bone name values must be copied VERBATIM from the list above.
 Always include optional fields explicitly — set them to null when not found, never omit them.
+Paired limbs (left arm / right arm, left leg / right leg) must be fully symmetric: if a field is present on one side it must be identified on the other side too.
 
 ---
 
