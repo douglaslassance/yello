@@ -1,3 +1,5 @@
 Do not use header style comments in the code to group methods or classes. Instead, use docstrings for classes and methods to explain their purpose and functionality. This will help maintain a cleaner codebase and improve readability.
 
 Do not use spaces to align operators or values in the code. Instead, rely on consistent indentation and formatting to enhance readability without the need for manual alignment.
+
+Do not use abbreviations or acronyms in variable, parameter, or function names. Write names out in full so that code is immediately understandable without context. For example, use `control_rig` instead of `cr`, `skeleton` instead of `skel_obj`, `pose_bones` instead of `pbs`, `edit_bones` instead of `ebs`, `bone_data` instead of `bd`, `mesh_builder` instead of `bm`, `constraint` instead of `c`, `pose_bone` instead of `pb`, and so on. Single-letter variables are acceptable only as standard mathematical loop indices (`i`, `j`) or in short mathematical formulas where the meaning is self-evident from context.
