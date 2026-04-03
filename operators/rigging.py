@@ -312,12 +312,12 @@ class BuildControlRigOperator(bpy.types.Operator):
         self.layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
 
     def execute(self, context):
-        skel_obj = context.object
+        skeleton = context.object
 
         if not ollama.reachable():
             return {"CANCELLED"}
 
-        bone_names = [b.name for b in skel_obj.data.bones]
+        bone_names = [b.name for b in skeleton.data.bones]
         systems, message, raw = rigging.classify_bones(bone_names)
         self.report({"INFO"}, f"Ollama: {raw}")
         if not systems:
@@ -328,18 +328,18 @@ class BuildControlRigOperator(bpy.types.Operator):
         all_bone_names = rigging.extract_bone_names(systems)
 
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.cleanup_existing_cr(skel_obj)
+        rigging.cleanup_existing_control_rig(skeleton)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         bpy.ops.object.mode_set(mode="EDIT")
         bone_data = {}
         for name in all_bone_names:
-            if name in skel_obj.data.edit_bones:
-                eb = skel_obj.data.edit_bones[name]
+            if name in skeleton.data.edit_bones:
+                edit_bone = skeleton.data.edit_bones[name]
                 bone_data[name] = {
-                    "head": eb.head.copy(),
-                    "tail": eb.tail.copy(),
-                    "roll": eb.roll,
+                    "head": edit_bone.head.copy(),
+                    "tail": edit_bone.tail.copy(),
+                    "roll": edit_bone.roll,
                 }
         bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -353,50 +353,50 @@ class BuildControlRigOperator(bpy.types.Operator):
             "pelvis_hips": rigging.get_or_load_blend_shape("other_controller.003"),
         }
 
-        cr_name = skel_obj.name + "_ControlRig"
-        if cr_name in bpy.data.objects:
-            bpy.data.objects.remove(bpy.data.objects[cr_name], do_unlink=True)
+        control_rig_name = skeleton.name + "_ControlRig"
+        if control_rig_name in bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[control_rig_name], do_unlink=True)
 
-        cr_arm_data = bpy.data.armatures.new(cr_name)
-        cr_obj = bpy.data.objects.new(cr_name, cr_arm_data)
-        for col in skel_obj.users_collection:
-            col.objects.link(cr_obj)
-        if not skel_obj.users_collection:
-            context.scene.collection.objects.link(cr_obj)
-        cr_obj.matrix_world = skel_obj.matrix_world.copy()
+        control_rig_arm_data = bpy.data.armatures.new(control_rig_name)
+        control_rig = bpy.data.objects.new(control_rig_name, control_rig_arm_data)
+        for col in skeleton.users_collection:
+            col.objects.link(control_rig)
+        if not skeleton.users_collection:
+            context.scene.collection.objects.link(control_rig)
+        control_rig.matrix_world = skeleton.matrix_world.copy()
 
         for shape in shapes.values():
             if shape is not None:
-                rigging.parent_to_cr(shape, cr_obj)
+                rigging.parent_to_control_rig(shape, control_rig)
 
-        context.view_layer.objects.active = cr_obj
+        context.view_layer.objects.active = control_rig
         bpy.ops.object.mode_set(mode="EDIT")
-        rigging.build_control_bones(cr_arm_data, systems, bone_data)
+        rigging.build_control_bones(control_rig_arm_data, systems, bone_data)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.setup_control_rig_pose(cr_obj, systems, shapes)
-        rigging.setup_spine_splineik(cr_obj, systems, context, bone_data)
+        rigging.setup_control_rig_pose(control_rig, systems, shapes)
+        rigging.setup_spine_splineik(control_rig, systems, context, bone_data)
         bpy.ops.object.mode_set(mode="OBJECT")
 
-        context.view_layer.objects.active = skel_obj
+        context.view_layer.objects.active = skeleton
         bpy.ops.object.mode_set(mode="POSE")
-        wire_log = rigging.wire_deform_constraints(skel_obj, cr_obj, systems)
+        wire_log = rigging.wire_deform_constraints(skeleton, control_rig, systems)
         bpy.ops.object.mode_set(mode="OBJECT")
 
-        cr_obj.show_in_front = False
-        cr_arm_data.display_type = "WIRE"
-        cr_arm_data.show_bone_custom_shapes = True
-        cr_arm_data.show_bone_colors = True
+        control_rig.show_in_front = False
+        control_rig_arm_data.display_type = "WIRE"
+        control_rig_arm_data.show_bone_custom_shapes = True
+        control_rig_arm_data.show_bone_colors = True
 
-        skel_obj.hide_set(True)
+        skeleton.hide_set(True)
 
-        context.view_layer.objects.active = cr_obj
+        context.view_layer.objects.active = control_rig
         bpy.context.scene.frame_set(bpy.context.scene.frame_current)
         for line in wire_log:
             if line:
                 self.report({"INFO"}, line)
-        self.report({"INFO"}, f"Control rig built: {cr_name}")
+        self.report({"INFO"}, f"Control rig built: {control_rig_name}")
         return {"FINISHED"}
 
 
@@ -416,34 +416,34 @@ class RemoveControlRigOperator(bpy.types.Operator):
         obj = context.object
         if obj is None or obj.type != "ARMATURE":
             return None
-        # If the selected object ends with _CR, the skeleton is the name without it
+        # If the selected object ends with _ControlRig, the skeleton is the name without it
         if obj.name.endswith("_ControlRig"):
-            skel_name = obj.name[:-len("_ControlRig")]
-            return bpy.data.objects.get(skel_name)
+            skeleton_name = obj.name[:-len("_ControlRig")]
+            return bpy.data.objects.get(skeleton_name)
         return obj
 
     def execute(self, context):
-        skel_obj = self._resolve_skeleton(context)
-        if skel_obj is None:
+        skeleton = self._resolve_skeleton(context)
+        if skeleton is None:
             self.report({"ERROR"}, "Could not find the skeleton armature.")
             return {"CANCELLED"}
-        cr_name = skel_obj.name + "_ControlRig"
+        control_rig_name = skeleton.name + "_ControlRig"
 
-        skel_obj.hide_viewport = False
-        skel_obj.hide_set(False)
-        context.view_layer.objects.active = skel_obj
+        skeleton.hide_viewport = False
+        skeleton.hide_set(False)
+        context.view_layer.objects.active = skeleton
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.cleanup_existing_cr(skel_obj)
+        rigging.cleanup_existing_control_rig(skeleton)
         bpy.ops.object.mode_set(mode="OBJECT")
 
-        cr_obj = bpy.data.objects.get(cr_name)
-        if cr_obj:
-            for child in list(cr_obj.children):
+        control_rig = bpy.data.objects.get(control_rig_name)
+        if control_rig:
+            for child in list(control_rig.children):
                 bpy.data.objects.remove(child, do_unlink=True)
-            bpy.data.objects.remove(cr_obj, do_unlink=True)
-            self.report({"INFO"}, f"Removed control rig: {cr_name}")
+            bpy.data.objects.remove(control_rig, do_unlink=True)
+            self.report({"INFO"}, f"Removed control rig: {control_rig_name}")
         else:
-            self.report({"WARNING"}, f"No control rig found ({cr_name})")
+            self.report({"WARNING"}, f"No control rig found ({control_rig_name})")
 
         return {"FINISHED"}
 
