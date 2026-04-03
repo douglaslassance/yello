@@ -4,8 +4,8 @@ import mathutils
 
 from .. import functions
 from ..contexts import CursorContext, ModeContext
-from ..helpers import ollama
-from ..helpers import rigging
+from .. import ollama
+from .. import rigging
 
 
 class AlignBoneRollsOperator(bpy.types.Operator):
