@@ -416,11 +416,11 @@ def _build_arm_system(ebs, system, bd, parent_eb, deform_to_ctrl):
 def _build_leg_system(ebs, system, bd, parent_eb):
     """Build leg IK control bones with a reverse-foot roll pivot chain.
 
-    IK_Foot (master), Pole_Knee, and all foot pivots are parented to FK_Root.
+    IK_Foot (master), Pole_Knee, and all foot pivots are parented to World.
     The reverse foot pivot chain ends at IK_Ankle which is the actual leg IK target.
     """
     s = system["side"]
-    root_eb = ebs.get("FK_Root")
+    root_eb = ebs.get("World")
     u_data = bd[system["upper_leg"]]
     l_data = bd[system["lower_leg"]]
     f_data = bd[system["foot"]]
@@ -476,7 +476,7 @@ def _build_finger_system(ebs, system, bd, parent_eb):
 def build_control_bones(cr_arm_data, systems, bone_data):
     """Build all control bones on the CR armature from the classified systems."""
     ebs = cr_arm_data.edit_bones
-    root_eb = _eb(ebs, "FK_Root", mathutils.Vector((0.0, 0.0, 0.0)),
+    root_eb = _eb(ebs, "World", mathutils.Vector((0.0, 0.0, 0.0)),
                   mathutils.Vector((0.0, 0.1, 0.0)), 0.0)
 
     hips_eb = None
@@ -583,9 +583,9 @@ def setup_control_rig_pose(cr_obj, systems, shapes):
     """Apply custom shapes, colors, and constraints to all control bones."""
     cr_obj.data.pose_position = "POSE"
     pbs = cr_obj.pose.bones
-    if "FK_Root" in pbs:
-        _assign_shape(pbs["FK_Root"], shapes["square"], False, 50.0)
-        _bone_color(pbs["FK_Root"], dracula.PURPLE)
+    if "World" in pbs:
+        _assign_shape(pbs["World"], shapes["square"], False, 50.0)
+        _bone_color(pbs["World"], dracula.PURPLE)
     for s in systems:
         t = s["type"]
         if t == "spine":
