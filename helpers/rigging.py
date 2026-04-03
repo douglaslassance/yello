@@ -162,30 +162,28 @@ def extract_bone_names(systems):
     return names
 
 
-def _shapes_collection():
-    col = bpy.data.collections.get("_Shapes")
-    if col is None:
-        col = bpy.data.collections.new("_Shapes")
-        bpy.context.scene.collection.children.link(col)
-    col.hide_viewport = True
-    col.hide_render = True
-    return col
-
-
 def get_or_create_shape(name, create_fn):
     """Return or create a mesh object to use as a custom bone shape.
 
     Any existing object of a different type (e.g. a stale Grease Pencil object
     from a previous build) is removed and recreated as a mesh.
+    The caller is responsible for parenting the shape to the CR armature.
     """
     obj = bpy.data.objects.get(name)
     if obj is not None:
         if obj.type == "MESH":
             return obj
         bpy.data.objects.remove(obj, do_unlink=True)
-    obj = create_fn(name)
-    _shapes_collection().objects.link(obj)
-    return obj
+    return create_fn(name)
+
+
+def parent_to_cr(obj, cr_obj):
+    """Link obj to the CR's collections, parent it, and hide it from the viewport."""
+    for col in cr_obj.users_collection:
+        if obj.name not in col.objects:
+            col.objects.link(obj)
+    obj.parent = cr_obj
+    obj.hide_viewport = True
 
 
 def _wire_shape(name, strokes):
@@ -429,10 +427,6 @@ def _build_leg_system(ebs, system, bd, parent_eb):
     has_toe = system.get("toe") and system["toe"] in bd
     t_data = bd[system["toe"]] if has_toe else None
 
-    ik_u = _eb(ebs, f"IK_UpperLeg.{s}", u_data["head"], u_data["tail"], u_data["roll"], parent_eb, False)
-    _eb(ebs, f"IK_LowerLeg.{s}", l_data["head"], l_data["tail"], l_data["roll"], ik_u,
-        _connected(l_data["head"], u_data["tail"]))
-
     foot_len = (f_data["tail"] - f_data["head"]).length
     ball_pos = t_data["head"] if has_toe else f_data["tail"]
     pivot_up = mathutils.Vector((0.0, 0.0, max(foot_len * 0.15, 0.05)))
@@ -559,20 +553,8 @@ def _setup_leg_pose(cr_obj, system, shapes):
         _assign_shape(pbs[f"Pole_Knee.{s}"], shapes["sphere"], False, 4.0)
         _bone_color(pbs[f"Pole_Knee.{s}"], color)
 
-    if f"IK_LowerLeg.{s}" in pbs:
-        upper_pb = pbs.get(f"IK_UpperLeg.{s}")
-        lower_pb = pbs[f"IK_LowerLeg.{s}"]
-        pole_pb = pbs.get(f"Pole_Knee.{s}")
-        c = lower_pb.constraints.new("IK")
-        c.target, c.subtarget = cr_obj, f"IK_Ankle.{s}"
-        c.pole_target, c.pole_subtarget = cr_obj, f"Pole_Knee.{s}"
-        c.chain_count, c.use_stretch = 2, False
-        if upper_pb and pole_pb:
-            c.pole_angle = _calc_pole_angle(upper_pb, lower_pb, pole_pb.bone.head_local)
-
-    for name in (f"IK_UpperLeg.{s}", f"IK_LowerLeg.{s}", f"IK_Ankle.{s}"):
-        if name in pbs:
-            pbs[name].bone.hide = True
+    if f"IK_Ankle.{s}" in pbs:
+        pbs[f"IK_Ankle.{s}"].bone.hide = True
 
 
 def _setup_head_pose(cr_obj, shapes):
@@ -668,6 +650,7 @@ def setup_spine_splineik(cr_obj, systems, context, bone_data):
     curve_obj = bpy.data.objects.new(curve_name, curve_data)
     for col in cr_obj.users_collection:
         col.objects.link(curve_obj)
+    curve_obj.parent = cr_obj
     curve_obj.hide_render = True
 
     hook_hips = curve_obj.modifiers.new("Hook_Hips", "HOOK")
@@ -697,6 +680,7 @@ def setup_spine_splineik(cr_obj, systems, context, bone_data):
     bpy.ops.object.hook_assign(modifier="Hook_Chest")
 
     bpy.ops.object.mode_set(mode="OBJECT")
+    curve_obj.hide_viewport = True
     context.view_layer.objects.active = cr_obj
     bpy.ops.object.mode_set(mode="POSE")
 
@@ -754,9 +738,22 @@ def wire_deform_constraints(skel_obj, cr_obj, systems):
                     log.append(_add_copy_transforms(skel_obj, cr_obj, s[def_key], ctrl))
         elif t == "leg":
             side = s["side"]
+            lower_pb = skel_obj.pose.bones.get(s.get("lower_leg", ""))
+            if lower_pb:
+                upper_pb = skel_obj.pose.bones.get(s.get("upper_leg", ""))
+                pole_pb = cr_obj.pose.bones.get(f"Pole_Knee.{side}")
+                ik_chain = [k for k in ("upper_leg", "lower_leg") if s.get(k)]
+                c = lower_pb.constraints.new("IK")
+                c.name = "CR"
+                c.target = cr_obj
+                c.subtarget = f"IK_Ankle.{side}"
+                c.pole_target = cr_obj
+                c.pole_subtarget = f"Pole_Knee.{side}"
+                c.chain_count = len(ik_chain)
+                c.use_stretch = False
+                c.pole_angle = -math.pi / 2
+                log.append(f"OK IK on {s['lower_leg']} (chain={len(ik_chain)}) → IK_Ankle.{side}")
             for def_key, ctrl in (
-                ("upper_leg", f"IK_UpperLeg.{side}"),
-                ("lower_leg", f"IK_LowerLeg.{side}"),
                 ("foot", f"IK_Ankle.{side}"),
                 ("toe", f"FK_Toe.{side}"),
             ):
