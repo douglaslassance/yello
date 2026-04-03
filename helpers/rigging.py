@@ -419,23 +419,35 @@ def _build_arm_system(ebs, system, bd, parent_eb, deform_to_ctrl):
 
 
 def _build_leg_system(ebs, system, bd, parent_eb):
-    """Build leg IK control bones with a hidden mechanism chain and a free foot target.
+    """Build leg IK control bones with a reverse-foot roll pivot chain.
 
-    IK_Foot and Pole_Knee are parented to FK_Root so they move with the master control.
+    IK_Foot (master), Pole_Knee, and all foot pivots are parented to FK_Root.
+    The reverse foot pivot chain ends at IK_Ankle which is the actual leg IK target.
     """
     s = system["side"]
     root_eb = ebs.get("FK_Root")
     u_data = bd[system["upper_leg"]]
     l_data = bd[system["lower_leg"]]
     f_data = bd[system["foot"]]
+    has_toe = system.get("toe") and system["toe"] in bd
+    t_data = bd[system["toe"]] if has_toe else None
+
     ik_u = _eb(ebs, f"IK_UpperLeg.{s}", u_data["head"], u_data["tail"], u_data["roll"], parent_eb, False)
     _eb(ebs, f"IK_LowerLeg.{s}", l_data["head"], l_data["tail"], l_data["roll"], ik_u,
         _connected(l_data["head"], u_data["tail"]))
+
+    foot_len = (f_data["tail"] - f_data["head"]).length
+    ball_pos = t_data["head"] if has_toe else f_data["tail"]
+    pivot_up = mathutils.Vector((0.0, 0.0, max(foot_len * 0.15, 0.05)))
+
     foot_eb = _eb(ebs, f"IK_Foot.{s}", f_data["head"], f_data["tail"], f_data["roll"], root_eb)
-    if system.get("toe") and system["toe"] in bd:
-        t_data = bd[system["toe"]]
+    ball_eb = _eb(ebs, f"Pivot_Ball.{s}", ball_pos, ball_pos + pivot_up, 0.0, foot_eb)
+    ankle_eb = _eb(ebs, f"IK_Ankle.{s}", f_data["head"], f_data["tail"], f_data["roll"], ball_eb)
+
+    if has_toe:
         _eb(ebs, f"FK_Toe.{s}", t_data["head"], t_data["tail"], t_data["roll"], foot_eb,
-            _connected(t_data["head"], f_data["tail"]))
+            False)
+
     pole = _calc_pole_pos(u_data["head"], u_data["tail"], l_data["tail"])
     _eb(ebs, f"Pole_Knee.{s}", pole, pole + mathutils.Vector((0.0, 0.05, 0.0)), 0.0, root_eb)
 
@@ -525,29 +537,36 @@ def _setup_arm_pose(cr_obj, system, shapes):
 
 
 def _setup_leg_pose(cr_obj, system, shapes):
-    """IK foot as box, knee swivel as sphere, both colored by side. Mechanism chain hidden."""
+    """Reverse foot pivot chain, IK leg constraint, knee swivel. Mechanism bones hidden."""
     pbs, s = cr_obj.pose.bones, system["side"]
     color = _side_color(s)
+
     if f"IK_Foot.{s}" in pbs:
         _assign_shape(pbs[f"IK_Foot.{s}"], shapes["sphere"], False, 10.0)
         _bone_color(pbs[f"IK_Foot.{s}"], color)
+    if f"Pivot_Ball.{s}" in pbs:
+        _assign_shape(pbs[f"Pivot_Ball.{s}"], shapes["diamond"], False, 3.0)
+        pbs[f"Pivot_Ball.{s}"].custom_shape_translation = (0.0, -7.5, 0.0)
+        _bone_color(pbs[f"Pivot_Ball.{s}"], color)
     if f"FK_Toe.{s}" in pbs:
         _assign_shape(pbs[f"FK_Toe.{s}"], shapes["sphere"], False, 6.0)
         _bone_color(pbs[f"FK_Toe.{s}"], color)
     if f"Pole_Knee.{s}" in pbs:
         _assign_shape(pbs[f"Pole_Knee.{s}"], shapes["sphere"], False, 4.0)
         _bone_color(pbs[f"Pole_Knee.{s}"], color)
+
     if f"IK_LowerLeg.{s}" in pbs:
         upper_pb = pbs.get(f"IK_UpperLeg.{s}")
         lower_pb = pbs[f"IK_LowerLeg.{s}"]
         pole_pb = pbs.get(f"Pole_Knee.{s}")
         c = lower_pb.constraints.new("IK")
-        c.target, c.subtarget = cr_obj, f"IK_Foot.{s}"
+        c.target, c.subtarget = cr_obj, f"IK_Ankle.{s}"
         c.pole_target, c.pole_subtarget = cr_obj, f"Pole_Knee.{s}"
         c.chain_count, c.use_stretch = 2, False
         if upper_pb and pole_pb:
             c.pole_angle = _calc_pole_angle(upper_pb, lower_pb, pole_pb.bone.head_local)
-    for name in (f"IK_UpperLeg.{s}", f"IK_LowerLeg.{s}"):
+
+    for name in (f"IK_UpperLeg.{s}", f"IK_LowerLeg.{s}", f"IK_Ankle.{s}"):
         if name in pbs:
             pbs[name].bone.hide = True
 
@@ -734,7 +753,7 @@ def wire_deform_constraints(skel_obj, cr_obj, systems):
             for def_key, ctrl in (
                 ("upper_leg", f"IK_UpperLeg.{side}"),
                 ("lower_leg", f"IK_LowerLeg.{side}"),
-                ("foot", f"IK_Foot.{side}"),
+                ("foot", f"IK_Ankle.{side}"),
                 ("toe", f"FK_Toe.{side}"),
             ):
                 if s.get(def_key):
