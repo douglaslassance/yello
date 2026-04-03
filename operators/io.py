@@ -247,53 +247,85 @@ class ExportControlRigAnimationsOperator(bpy.types.Operator):
             skel_obj.animation_data_create()
 
         baked_actions = []
+        renamed_sources = []
 
-        for action in actions:
-            if cr_obj.animation_data is None:
-                cr_obj.animation_data_create()
-            cr_obj.animation_data.action = action
+        try:
+            for action in actions:
+                if cr_obj.animation_data is None:
+                    cr_obj.animation_data_create()
 
-            frame_start = int(action.frame_range[0])
-            frame_end = int(action.frame_range[1])
+                original_name = action.name
+                action.name = f"__src_{original_name}"
+                renamed_sources.append((action, original_name))
 
-            context.view_layer.objects.active = skel_obj
-            bpy.ops.object.mode_set(mode="POSE")
-            bpy.ops.nla.bake(
-                frame_start=frame_start,
-                frame_end=frame_end,
-                only_selected=False,
-                visual_keying=True,
-                clear_constraints=False,
-                use_current_action=False,
-                bake_types={"POSE"},
-            )
-            bpy.ops.object.mode_set(mode="OBJECT")
-
-            if skel_obj.animation_data and skel_obj.animation_data.action:
-                baked = skel_obj.animation_data.action
-                baked.name = action.name
-                baked_actions.append(baked)
-                track = skel_obj.animation_data.nla_tracks.new()
-                track.name = action.name
-                track.strips.new(action.name, frame_start, baked)
+                cr_obj.animation_data.action = action
                 skel_obj.animation_data.action = None
 
-        context.view_layer.objects.active = cr_obj
+                frame_start = int(action.frame_range[0])
+                frame_end = int(action.frame_range[1])
 
-        filename = os.path.splitext(bpy.data.filepath)[0] + ".glb"
-        functions.export_gltf([skel_obj] + skinned_meshes, filename)
+                context.view_layer.objects.active = skel_obj
+                bpy.ops.object.mode_set(mode="POSE")
+                bpy.ops.nla.bake(
+                    frame_start=frame_start,
+                    frame_end=frame_end,
+                    only_selected=False,
+                    visual_keying=True,
+                    clear_constraints=False,
+                    use_current_action=False,
+                    bake_types={"POSE"},
+                )
+                bpy.ops.object.mode_set(mode="OBJECT")
 
-        for track in list(skel_obj.animation_data.nla_tracks):
-            skel_obj.animation_data.nla_tracks.remove(track)
-        for baked in baked_actions:
-            bpy.data.actions.remove(baked)
+                if skel_obj.animation_data and skel_obj.animation_data.action:
+                    baked = skel_obj.animation_data.action
+                    baked.name = original_name
+                    baked_actions.append(baked)
+                    track = skel_obj.animation_data.nla_tracks.new()
+                    track.name = original_name
+                    track.strips.new(original_name, frame_start, baked)
+                    skel_obj.animation_data.action = None
 
-        if cr_obj.animation_data:
-            cr_obj.animation_data.action = original_cr_action
+            context.view_layer.objects.active = cr_obj
 
-        skel_obj.hide_set(True)
+            for obj in context.selected_objects:
+                obj.select_set(False)
+            skel_obj.select_set(True)
+            for mesh in skinned_meshes:
+                mesh.select_set(True)
 
-        self.report({"INFO"}, f"Exported {len(baked_actions)} action(s) to {filename}")
+            filename = os.path.splitext(bpy.data.filepath)[0] + ".glb"
+            functions.make_writable(filename)
+            bpy.ops.export_scene.gltf(
+                filepath=filename,
+                export_format="GLB",
+                use_selection=True,
+                export_apply=True,
+                export_def_bones=True,
+                export_animations=True,
+                export_animation_mode="NLA_TRACKS",
+                export_reset_pose_bones=True,
+                export_armature_object_remove=True,
+                export_bake_animation=True,
+            )
+
+            self.report(
+                {"INFO"}, f"Exported {len(baked_actions)} action(s) to {filename}"
+            )
+
+        finally:
+            for action, original_name in renamed_sources:
+                action.name = original_name
+            if skel_obj.animation_data:
+                for track in list(skel_obj.animation_data.nla_tracks):
+                    skel_obj.animation_data.nla_tracks.remove(track)
+                skel_obj.animation_data.action = None
+            for baked in baked_actions:
+                bpy.data.actions.remove(baked)
+            if cr_obj.animation_data:
+                cr_obj.animation_data.action = original_cr_action
+            skel_obj.hide_set(True)
+
         return {"FINISHED"}
 
 
