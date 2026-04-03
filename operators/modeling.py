@@ -6,7 +6,7 @@ from .. import contexts
 
 class GenerateMeshIntersectionsOperator(bpy.types.Operator):
     bl_idname = "object.slice_meshes_with_collection"
-    bl_label = "Generate mesh intersections"
+    bl_label = "Generate Mesh Intersections"
     bl_description = (
         "Generate intersection meshes between selected meshes and a collection of mesh."
     )

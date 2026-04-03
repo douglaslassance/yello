@@ -10,7 +10,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
     _ratio_key = "yello_smooth_normal_iterations"
 
     bl_idname = "object.smooth_normals"
-    bl_label = "Smooth normals"
+    bl_label = "Smooth Normals"
     bl_description = (
         "Generate normals by projecting them from a smoothed version of the model"
     )
@@ -67,7 +67,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
 
 class ResetNormalsOperator(bpy.types.Operator):
     bl_idname = "object.reset_normals"
-    bl_label = "Reset normals"
+    bl_label = "Reset Normals"
     bl_description = "Remove projected normal from model"
 
     @classmethod
@@ -92,7 +92,7 @@ class ResetNormalsOperator(bpy.types.Operator):
 
 class SetMeshColorChannelOperator(bpy.types.Operator):
     bl_idname = "object.set_vertex_color"
-    bl_label = "Set mesh color channel"
+    bl_label = "Set Mesh Color Channel"
     bl_description = (
         "Set a channel of the active mesh color attribute to the desired value for the "
         "selected components."
