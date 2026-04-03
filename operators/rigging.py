@@ -344,11 +344,11 @@ class BuildControlRigOperator(bpy.types.Operator):
         bpy.ops.object.mode_set(mode="OBJECT")
 
         shapes = {
-            "circle": rigging.get_or_create_shape("_shape_circle", rigging.create_circle_shape),
-            "box": rigging.get_or_create_shape("_shape_box", rigging.create_box_shape),
-            "diamond": rigging.get_or_create_shape("_shape_diamond", rigging.create_diamond_shape),
-            "sphere": rigging.get_or_create_shape("_shape_sphere", rigging.create_sphere_shape),
-            "square": rigging.get_or_create_shape("_shape_square", rigging.create_square_shape),
+            "circle": rigging.get_or_create_shape("Shape_Circle", rigging.create_circle_shape),
+            "box": rigging.get_or_create_shape("Shape_Box", rigging.create_box_shape),
+            "diamond": rigging.get_or_create_shape("Shape_Diamond", rigging.create_diamond_shape),
+            "sphere": rigging.get_or_create_shape("Shape_Sphere", rigging.create_sphere_shape),
+            "square": rigging.get_or_create_shape("Shape_Square", rigging.create_square_shape),
         }
 
         cr_name = skel_obj.name + "_ControlRig"
@@ -362,6 +362,9 @@ class BuildControlRigOperator(bpy.types.Operator):
         if not skel_obj.users_collection:
             context.scene.collection.objects.link(cr_obj)
         cr_obj.matrix_world = skel_obj.matrix_world.copy()
+
+        for shape in shapes.values():
+            rigging.parent_to_cr(shape, cr_obj)
 
         context.view_layer.objects.active = cr_obj
         bpy.ops.object.mode_set(mode="EDIT")
