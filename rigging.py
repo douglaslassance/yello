@@ -9,8 +9,8 @@ from pathlib import Path
 from . import dracula
 from . import ollama
 
-_PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
-_ASSETS_DIR = Path(__file__).parent.parent / "assets"
+_PROMPTS_DIR = Path(__file__).parent / "prompts"
+_ASSETS_DIR = Path(__file__).parent / "assets"
 
 
 def _load_prompt(filename):
