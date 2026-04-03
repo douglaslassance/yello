@@ -384,10 +384,7 @@ def _build_spine_system(ebs, system, bd, root_eb):
 
     if chain:
         last_d = bd[chain[-1]]
-        spine_dir = (last_d["tail"] - last_d["head"]).normalized()
-        segment_len = (last_d["tail"] - last_d["head"]).length
-        chest_tail = last_d["tail"] + spine_dir * max(segment_len * 0.5, 0.05)
-        chest_eb = _eb(ebs, "FK_Chest", last_d["tail"], chest_tail, last_d["roll"], pelvis_eb or root_eb, False)
+        chest_eb = _eb(ebs, "FK_Chest", last_d["head"], last_d["tail"], last_d["roll"], pelvis_eb or root_eb, False)
 
     return hips_eb, chest_eb, deform_to_ctrl
 
@@ -440,7 +437,14 @@ def _build_leg_system(ebs, system, bd, parent_eb):
     ball_pos = t_data["head"] if has_toe else f_data["tail"]
     pivot_up = mathutils.Vector((0.0, 0.0, max(foot_len * 0.15, 0.05)))
 
-    foot_eb = _eb(ebs, f"IK_Foot.{s}", f_data["head"], f_data["tail"], f_data["roll"], root_eb)
+    foot_dir = (f_data["tail"] - f_data["head"]).normalized()
+    foot_dir_horiz = mathutils.Vector((foot_dir.x, foot_dir.y, 0.0))
+    if foot_dir_horiz.length > 1e-4:
+        foot_dir_horiz = foot_dir_horiz.normalized()
+    else:
+        foot_dir_horiz = mathutils.Vector((0.0, 1.0, 0.0))
+    foot_horiz_tail = f_data["head"] + foot_dir_horiz * foot_len
+    foot_eb = _eb(ebs, f"IK_Foot.{s}", f_data["head"], foot_horiz_tail, 0.0, root_eb)
     ball_eb = _eb(ebs, f"Pivot_Ball.{s}", ball_pos, ball_pos + pivot_up, 0.0, foot_eb)
     ankle_eb = _eb(ebs, f"IK_Ankle.{s}", f_data["head"], f_data["tail"], f_data["roll"], ball_eb)
 
@@ -516,7 +520,7 @@ def _setup_spine_pose(cr_obj, system, shapes):
         _assign_shape(pbs["FK_Hips"], shapes["circle"], True, 3.5)
         _bone_color(pbs["FK_Hips"], dracula.PURPLE)
     if "FK_Chest" in pbs:
-        _assign_shape(pbs["FK_Chest"], shapes["circle"], True, 1.25)
+        _assign_shape(pbs["FK_Chest"], shapes["circle"], True, 1.6)
         _bone_color(pbs["FK_Chest"], dracula.PURPLE)
 
 
@@ -546,7 +550,7 @@ def _setup_leg_pose(cr_obj, system, shapes):
         _bone_color(pbs[f"IK_Foot.{s}"], color)
     if f"Pivot_Ball.{s}" in pbs:
         _assign_shape(pbs[f"Pivot_Ball.{s}"], shapes["diamond"], False, 3.0)
-        pbs[f"Pivot_Ball.{s}"].custom_shape_translation = (0.0, -7.5, 0.0)
+        pbs[f"Pivot_Ball.{s}"].custom_shape_translation = (0.0, 0.0, -7.5)
         _bone_color(pbs[f"Pivot_Ball.{s}"], color)
     if f"FK_Toe.{s}" in pbs:
         _assign_shape(pbs[f"FK_Toe.{s}"], shapes["sphere"], False, 6.0)
@@ -575,7 +579,7 @@ def _setup_head_pose(cr_obj, shapes):
     """Neck and head as purple circles (central controls), head slightly larger."""
     pbs = cr_obj.pose.bones
     if "FK_Neck" in pbs:
-        _assign_shape(pbs["FK_Neck"], shapes["circle"], True, 0.6)
+        _assign_shape(pbs["FK_Neck"], shapes["circle"], True, 1.15)
         _bone_color(pbs["FK_Neck"], dracula.PURPLE)
     if "FK_Head" in pbs:
         _assign_shape(pbs["FK_Head"], shapes["circle"], True, (0.6, 0.8, 0.8))
