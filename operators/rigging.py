@@ -3,7 +3,7 @@ import math
 import mathutils
 
 from .. import functions
-from ..contexts import CursorContext, ModeContext
+from ..contexts import CursorContext, ModeContext, SelectionContext
 from .. import ollama
 from .. import rigging
 
@@ -293,9 +293,15 @@ class BuildControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.build_control_rig"
     bl_label = "Build Control Rig"
     bl_description = (
-        "Detect arm/leg bones by name and build an IK/FK control rig armature. "
-        "Deform bones are wired via Copy Transforms driven by an ik_fk property."
+        "Detect arm/leg bones by name and build CR_ control bones within the armature. "
+        "Deform bones are wired via Copy Transforms constraints to the control bones."
     )
+
+    apply_transform: bpy.props.BoolProperty(
+        name="Apply Transform",
+        description="Apply transforms to the armature and its children before building.",
+        default=True,
+    )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
     def poll(cls, context):
@@ -303,19 +309,25 @@ class BuildControlRigOperator(bpy.types.Operator):
         return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
 
     def invoke(self, context, event):
-        if not ollama.reachable():
-            return context.window_manager.invoke_props_dialog(self, width=300)
-        return self.execute(context)
+        return context.window_manager.invoke_props_dialog(self, width=300)
 
     def draw(self, context):
-        self.layout.label(text="Ollama is offline.", icon="ERROR")
-        self.layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
+        if not ollama.reachable():
+            self.layout.label(text="Ollama is offline.", icon="ERROR")
+            self.layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
+        self.layout.prop(self, "apply_transform")
 
     def execute(self, context):
         skeleton = context.object
 
         if not ollama.reachable():
             return {"CANCELLED"}
+
+        if self.apply_transform:
+            objects = [skeleton] + functions.get_children(skeleton, recursive=True)
+            with SelectionContext():
+                functions.select_objects(objects)
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
         bone_names = [b.name for b in skeleton.data.bones]
         systems, message, raw = rigging.classify_bones(bone_names)
@@ -328,8 +340,7 @@ class BuildControlRigOperator(bpy.types.Operator):
         all_bone_names = rigging.extract_bone_names(systems)
 
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.cleanup_existing_control_rig(skeleton)
-        bpy.ops.object.mode_set(mode="OBJECT")
+        rigging.remove_control_rig_bones(skeleton)
 
         bpy.ops.object.mode_set(mode="EDIT")
         bone_data = {}
@@ -341,70 +352,62 @@ class BuildControlRigOperator(bpy.types.Operator):
                     "tail": edit_bone.tail.copy(),
                     "roll": edit_bone.roll,
                 }
+        rigging.build_control_bones(skeleton.data, systems, bone_data)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         shapes = {
             "circle": rigging.get_or_create_shape(
-                "Shape_Circle", rigging.create_circle_shape
+                "CR_Circle_Shape", rigging.create_circle_shape
             ),
-            "box": rigging.get_or_create_shape("Shape_Box", rigging.create_box_shape),
+            "box": rigging.get_or_create_shape(
+                "CR_Box_Shape", rigging.create_box_shape
+            ),
             "diamond": rigging.get_or_create_shape(
-                "Shape_Diamond", rigging.create_diamond_shape
+                "CR_Diamond_Shape", rigging.create_diamond_shape
             ),
             "sphere": rigging.get_or_create_shape(
-                "Shape_Sphere", rigging.create_sphere_shape
+                "CR_Sphere_Shape", rigging.create_sphere_shape
             ),
             "square": rigging.get_or_create_shape(
-                "Shape_Square", rigging.create_square_shape
+                "CR_Square_Shape", rigging.create_square_shape
             ),
-            "master": rigging.get_or_load_shape("base_controller.034"),
-            "pelvis_hips": rigging.get_or_load_shape("other_controller.003"),
+            "master": rigging.get_or_load_shape(
+                "base_controller.034", "CR_base_controller.034"
+            ),
+            "pelvis_hips": rigging.get_or_load_shape(
+                "other_controller.003", "CR_other_controller.003"
+            ),
         }
-
-        control_rig_name = skeleton.name + "_ControlRig"
-        if control_rig_name in bpy.data.objects:
-            bpy.data.objects.remove(bpy.data.objects[control_rig_name], do_unlink=True)
-
-        control_rig_arm_data = bpy.data.armatures.new(control_rig_name)
-        control_rig = bpy.data.objects.new(control_rig_name, control_rig_arm_data)
-        for col in skeleton.users_collection:
-            col.objects.link(control_rig)
-        if not skeleton.users_collection:
-            context.scene.collection.objects.link(control_rig)
-        control_rig.matrix_world = skeleton.matrix_world.copy()
-
+        shapes_container = rigging.get_or_create_control_rig_container(
+            skeleton, "CR_Shapes"
+        )
+        curves_container = rigging.get_or_create_control_rig_container(
+            skeleton, "CR_Curves"
+        )
         for shape in shapes.values():
             if shape is not None:
-                rigging.parent_to_control_rig(shape, control_rig)
+                rigging.parent_to_control_rig(shape, shapes_container)
 
-        context.view_layer.objects.active = control_rig
-        bpy.ops.object.mode_set(mode="EDIT")
-        rigging.build_control_bones(control_rig_arm_data, systems, bone_data)
+        bpy.ops.object.mode_set(mode="POSE")
+        rigging.setup_control_rig_pose(skeleton, systems, shapes)
+        rigging.setup_spine_splineik(skeleton, systems, context, bone_data, curves_container)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.setup_control_rig_pose(control_rig, systems, shapes)
-        rigging.setup_spine_splineik(control_rig, systems, context, bone_data)
+        wire_log = rigging.wire_deform_constraints(skeleton, systems)
         bpy.ops.object.mode_set(mode="OBJECT")
+
+        skeleton.show_in_front = False
+        skeleton.data.display_type = "WIRE"
+        skeleton.data.show_bone_custom_shapes = True
+        skeleton.data.show_bone_colors = True
 
         context.view_layer.objects.active = skeleton
-        bpy.ops.object.mode_set(mode="POSE")
-        wire_log = rigging.wire_deform_constraints(skeleton, control_rig, systems)
-        bpy.ops.object.mode_set(mode="OBJECT")
-
-        control_rig.show_in_front = False
-        control_rig_arm_data.display_type = "WIRE"
-        control_rig_arm_data.show_bone_custom_shapes = True
-        control_rig_arm_data.show_bone_colors = True
-
-        skeleton.hide_set(True)
-
-        context.view_layer.objects.active = control_rig
         bpy.context.scene.frame_set(bpy.context.scene.frame_current)
         for line in wire_log:
             if line:
                 self.report({"INFO"}, line)
-        self.report({"INFO"}, f"Control rig built: {control_rig_name}")
+        self.report({"INFO"}, "Control rig built.")
         return {"FINISHED"}
 
 
@@ -412,7 +415,7 @@ class RemoveControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.remove_control_rig"
     bl_label = "Remove Control Rig"
     bl_description = (
-        "Remove the control rig and all constraints from the skeleton armature."
+        "Remove all CR_ control bones and their constraints from the armature."
     )
 
     @classmethod
@@ -420,41 +423,22 @@ class RemoveControlRigOperator(bpy.types.Operator):
         obj = context.object
         return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
 
-    @staticmethod
-    def _resolve_skeleton(context):
-        """Return the skeleton object whether the user selected the CR or the skeleton."""
-        obj = context.object
-        if obj is None or obj.type != "ARMATURE":
-            return None
-        # If the selected object ends with _ControlRig, the skeleton is the name without it
-        if obj.name.endswith("_ControlRig"):
-            skeleton_name = obj.name[: -len("_ControlRig")]
-            return bpy.data.objects.get(skeleton_name)
-        return obj
-
     def execute(self, context):
-        skeleton = self._resolve_skeleton(context)
-        if skeleton is None:
-            self.report({"ERROR"}, "Could not find the skeleton armature.")
+        skeleton = context.object
+        control_bone_names = [b.name for b in skeleton.data.bones if b.name.startswith("CR_")]
+        if not control_bone_names:
+            self.report({"WARNING"}, "No control rig bones found.")
             return {"CANCELLED"}
-        control_rig_name = skeleton.name + "_ControlRig"
-
-        skeleton.hide_viewport = False
-        skeleton.hide_set(False)
-        context.view_layer.objects.active = skeleton
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.cleanup_existing_control_rig(skeleton)
-        bpy.ops.object.mode_set(mode="OBJECT")
-
-        control_rig = bpy.data.objects.get(control_rig_name)
-        if control_rig:
-            for child in list(control_rig.children):
-                bpy.data.objects.remove(child, do_unlink=True)
-            bpy.data.objects.remove(control_rig, do_unlink=True)
-            self.report({"INFO"}, f"Removed control rig: {control_rig_name}")
-        else:
-            self.report({"WARNING"}, f"No control rig found ({control_rig_name})")
-
+        rigging.remove_control_rig_bones(skeleton)
+        spine_curve = bpy.data.objects.get("CR_Spine_Curve")
+        if spine_curve:
+            bpy.data.objects.remove(spine_curve, do_unlink=True)
+        for container_name in ("CR_Shapes", "CR_Curves"):
+            container = bpy.data.objects.get(container_name)
+            if container:
+                bpy.data.objects.remove(container, do_unlink=True)
+        self.report({"INFO"}, f"Removed {len(control_bone_names)} control rig bones.")
         return {"FINISHED"}
 
 
