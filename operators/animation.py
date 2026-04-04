@@ -29,29 +29,13 @@ class ExportAnimationOperator(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context):
+        objects = list(context.selected_objects)
         if self.include_children:
-            for obj in list(context.selected_objects):
-                for child in functions.get_children(obj, recursive=True):
-                    child.select_set(True)
+            for obj in list(objects):
+                objects.extend(functions.get_children(obj, recursive=True))
         filename = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
-        functions.make_writable(filename)
-        bpy.ops.export_scene.fbx(
-            add_leaf_bones=False,
-            apply_scale_options="FBX_SCALE_NONE",
-            apply_unit_scale=True,
-            armature_nodetype="NULL",
-            axis_forward="-Z",
-            axis_up="Y",
-            bake_anim=True,
-            bake_space_transform=False,
-            filepath=filename,
-            global_scale=1.0,
-            mesh_smooth_type="FACE",
-            object_types={"ARMATURE"},
-            primary_bone_axis="Y",
-            secondary_bone_axis="X",
-            use_selection=True,
-            use_space_transform=True,
+        functions.export_fbx(
+            objects, filename, animations=True, object_types={"ARMATURE"}
         )
         return {"FINISHED"}
 
