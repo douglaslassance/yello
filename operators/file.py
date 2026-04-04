@@ -9,7 +9,7 @@ from .. import functions
 class MakeWritableOperator(bpy.types.Operator):
     bl_idname = "object.make_writable"
     bl_label = "Make Writable"
-    bl_description = "Perform a Gitarmony make writable on the current file"
+    bl_description = "Perform a Gitalong make writable on the current file"
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
