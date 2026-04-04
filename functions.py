@@ -73,7 +73,7 @@ def lock_file(filename):
     """
     if not os.path.exists(filename):
         return False
-    command = ["git", "lfs", "lock", ".\\{}".format(os.path.basename(filename))]
+    command = ["git", "lfs", "lock", os.path.join(".", os.path.basename(filename))]
     return run_command(command)
 
 
@@ -85,7 +85,7 @@ def has_conflict(filename):
     """
     if not os.path.exists(filename):
         return False
-    command = ["has-conflict", ".\\{}".format(os.path.basename(filename))]
+    command = ["has-conflict", os.path.join(".", os.path.basename(filename))]
     return run_gitalong_command(command)
 
 
@@ -97,7 +97,7 @@ def make_writable(filename):
     """
     if not os.path.exists(filename):
         return False
-    command = ["make-writable", f".\\{os.path.basename(filename)}"]
+    command = ["make-writable", os.path.join(".", os.path.basename(filename))]
     return run_gitalong_command(command)
 
 
