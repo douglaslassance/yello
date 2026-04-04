@@ -1,6 +1,8 @@
 import os
 import logging
 import subprocess
+from typing import Any
+
 import bpy
 import mathutils
 
@@ -10,7 +12,7 @@ from bmesh.types import BMesh, BMLayerItem
 from . import contexts
 
 
-def create_collection(name="Collection"):
+def create_collection(name: str = "Collection") -> bpy.types.Collection:
     if name not in bpy.data.collections:
         collection = bpy.data.collections.new(name)
         bpy.context.scene.collection.children.link(collection)
@@ -19,30 +21,28 @@ def create_collection(name="Collection"):
     return collection
 
 
-def add_object_to_collection(obj, collection):
+def add_object_to_collection(
+    obj: bpy.types.Object, collection: bpy.types.Collection
+) -> None:
     if obj.name not in bpy.data.collections[collection.name]:
         bpy.data.collections[collection.name].objects.link(obj)
 
 
-def apply_all_modifiers(obj):
-    """Apply all modifiers on an object.
-
-    Args:
-        obj (bpy.types.Object): The object to apply modifiers on.
-    """
+def apply_all_modifiers(obj: bpy.types.Object) -> None:
+    """Apply all modifiers on an object."""
     with contexts.SelectionContext():
         select_objects([obj])
         for modifier in obj.modifiers:
             bpy.ops.object.modifier_apply(modifier=modifier.name)
 
 
-def remove_object_from_all_collections(obj):
+def remove_object_from_all_collections(obj: bpy.types.Object) -> None:
     for col in obj.users_collection:
         col.objects.unlink(obj)
     bpy.data.scenes["Scene"].collection.objects.link(obj)
 
 
-def run_command(command: list):
+def run_command(command: list[str]) -> int:
     process = subprocess.Popen(
         command,
         cwd=os.path.dirname(bpy.data.filepath),
@@ -58,55 +58,48 @@ def run_command(command: list):
     return process.returncode
 
 
-def run_gitalong_command(command: list):
+def run_gitalong_command(command: list[str]) -> int | None:
     try:
         return run_command(["gitalong"] + command)
     except FileNotFoundError:
         logging.warning("Gitalong not found.")
+    return None
 
 
-def lock_file(filename):
-    """Lock a file using Git LFS.
-
-    Args:
-        filename (string): The filename of the file to lock.
-    """
+def lock_file(filename: str) -> bool | int:
+    """Lock a file using Git LFS."""
     if not os.path.exists(filename):
         return False
     command = ["git", "lfs", "lock", os.path.join(".", os.path.basename(filename))]
     return run_command(command)
 
 
-def has_conflict(filename):
-    """Check if Gitalong says we'd have a conflicting touching this file.
-
-    Args:
-        filename (string): The filename of the file to check conflict for.
-    """
+def has_conflict(filename: str) -> bool | int | None:
+    """Check if Gitalong says we'd have a conflicting touching this file."""
     if not os.path.exists(filename):
         return False
     command = ["has-conflict", os.path.join(".", os.path.basename(filename))]
     return run_gitalong_command(command)
 
 
-def make_writable(filename):
-    """Make file writable safely using Gitalong.
-
-    Args:
-        filename (string): The filename of the file to make writable.
-    """
+def make_writable(filename: str) -> bool | int | None:
+    """Make file writable safely using Gitalong."""
     if not os.path.exists(filename):
         return False
     command = ["make-writable", os.path.join(".", os.path.basename(filename))]
     return run_gitalong_command(command)
 
 
-def get_projected_vector(vector: mathutils.Vector, normal: mathutils.Vector):
+def get_projected_vector(
+    vector: mathutils.Vector, normal: mathutils.Vector
+) -> mathutils.Vector:
     """Project a vector onto a plane defined by a normalized normal vector."""
     return vector - normal * vector.dot(normal)
 
 
-def validate_bone_chain(editable_bones, minimum=2):
+def validate_bone_chain(
+    editable_bones: Any, minimum: int = 2
+) -> tuple[list[Any] | None, str | None]:
     """Validate that editable bones form a connected chain of at least minimum length.
 
     Returns the chain sorted root-to-tip, or None if validation fails.
@@ -124,7 +117,7 @@ def validate_bone_chain(editable_bones, minimum=2):
     return bones, None
 
 
-def select_objects(objects):
+def select_objects(objects: list[bpy.types.Object]) -> None:
     bpy.ops.object.select_all(action="DESELECT")
     for obj in objects:
         obj.select_set(True)
@@ -132,7 +125,9 @@ def select_objects(objects):
         bpy.context.view_layer.objects.active = objects[0]
 
 
-def get_children(obj, recursive=False):
+def get_children(
+    obj: bpy.types.Object, recursive: bool = False
+) -> list[bpy.types.Object]:
     """Return the children of an object.
 
     When recursive is True, includes all descendants in depth-first order.
@@ -144,7 +139,7 @@ def get_children(obj, recursive=False):
     return children
 
 
-def duplicate_object(obj):
+def duplicate_object(obj: bpy.types.Object) -> bpy.types.Object:
     with contexts.SelectionContext():
         select_objects([obj])
         bpy.ops.object.duplicate()
@@ -152,11 +147,11 @@ def duplicate_object(obj):
 
 
 def export_fbx(
-    objects,
-    filename,
-    animations=False,
-    object_types=None,
-):
+    objects: list[bpy.types.Object],
+    filename: str,
+    animations: bool = False,
+    object_types: set[str] | None = None,
+) -> None:
     """Export objects to FBX with rigging-friendly defaults."""
     if object_types is None:
         object_types = {"MESH", "ARMATURE"}
@@ -183,7 +178,9 @@ def export_fbx(
         )
 
 
-def export_gltf(objects, filename, animations=True):
+def export_gltf(
+    objects: list[bpy.types.Object], filename: str, animations: bool = True
+) -> None:
     """https://docs.blender.org/api/current/bpy.ops.export_scene.html#module-bpy.ops.export_scene"""
     with contexts.SelectionContext():
         select_objects(objects)
@@ -199,7 +196,12 @@ def export_gltf(objects, filename, animations=True):
         )
 
 
-def apply_transforms(obj, location=True, rotation=True, scale=True):
+def apply_transforms(
+    obj: bpy.types.Object,
+    location: bool = True,
+    rotation: bool = True,
+    scale: bool = True,
+) -> None:
     with contexts.SelectionContext():
         select_objects([obj])
         bpy.ops.object.transform_apply(
@@ -207,7 +209,7 @@ def apply_transforms(obj, location=True, rotation=True, scale=True):
         )
 
 
-def join_objects(objects):
+def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object | None:
     joinables = []
     for obj in objects:
         if obj.type == "MESH":
@@ -227,7 +229,7 @@ def join_objects(objects):
     return joined_mesh
 
 
-def delete_objects(objects):
+def delete_objects(objects: list[bpy.types.Object]) -> None:
     with contexts.SelectionContext():
         select_objects(objects)
         bpy.ops.object.delete()

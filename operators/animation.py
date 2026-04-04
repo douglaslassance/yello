@@ -1,6 +1,7 @@
 import os
-import bpy
 import datetime
+
+import bpy
 
 from ..contexts import SelectionContext, VisibleContext
 
@@ -19,16 +20,16 @@ class ExportAnimationOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if bpy.data.filepath:
             if context.mode and context.selected_objects:
                 return True
         return False
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         return context.window_manager.invoke_props_dialog(self)
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         objects = list(context.selected_objects)
         if self.include_children:
             for obj in list(objects):
@@ -46,13 +47,13 @@ class ExportAnimatedMeshOperator(bpy.types.Operator):
     bl_description = "Export selected animated meshes to Alembic."
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if bpy.data.filepath:
             if context.mode and context.selected_objects:
                 return True
         return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         filename = os.path.splitext(bpy.data.filepath)[0] + ".abc"
         functions.make_writable(filename)
         bpy.ops.wm.alembic_export(
@@ -82,16 +83,16 @@ class ExportActionsOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if not bpy.data.filepath:
             return False
         obj = context.object
         return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         return context.window_manager.invoke_props_dialog(self)
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
         objects = [skeleton]
         if self.include_children:

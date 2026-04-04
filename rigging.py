@@ -5,20 +5,24 @@ import math
 import mathutils
 import urllib.error
 from pathlib import Path
+from typing import Any, Callable
 
 from . import dracula
 from . import ollama
 
-_PROMPTS_DIR = Path(__file__).parent / "prompts"
-_ASSETS_DIR = Path(__file__).parent / "assets"
-CONTROL_PREFIX = "CR_"
+_PROMPTS_DIR: Path = Path(__file__).parent / "prompts"
+_ASSETS_DIR: Path = Path(__file__).parent / "assets"
+CONTROL_PREFIX: str = "CR_"
+
+SystemDict = dict[str, Any]
+BoneDataDict = dict[str, dict[str, Any]]
 
 
-def _load_prompt(filename):
+def _load_prompt(filename: str) -> str:
     return (_PROMPTS_DIR / filename).read_text(encoding="utf-8")
 
 
-def classify_bones(bone_names):
+def classify_bones(bone_names: list[str]) -> tuple[list[SystemDict] | None, str, str]:
     """Ask Ollama to classify bone names into rig systems.
 
     Returns (systems, message, raw) where systems is a list of system dicts,
@@ -53,7 +57,7 @@ def classify_bones(bone_names):
         return None, f"Ollama error: {exc}", ""
 
 
-def _parse_systems(data, bone_names):
+def _parse_systems(data: dict[str, Any], bone_names: list[str]) -> list[SystemDict] | None:
     """Parse the systems array from Ollama JSON into validated dicts with resolved bone names."""
     lookup = {n.strip().lower(): n for n in bone_names}
 
@@ -150,7 +154,7 @@ def _parse_systems(data, bone_names):
     return systems or None
 
 
-def extract_bone_names(systems):
+def extract_bone_names(systems: list[SystemDict]) -> set[str]:
     """Return the flat set of all deform bone names referenced by systems."""
     names = set()
     for system in systems:
@@ -176,7 +180,7 @@ def extract_bone_names(systems):
     return names
 
 
-def get_or_create_shape(name, create_fn):
+def get_or_create_shape(name: str, create_fn: Callable[[str], bpy.types.Object]) -> bpy.types.Object:
     """Return or create a mesh object to use as a custom bone shape.
 
     Any existing object of a different type (e.g. a stale Grease Pencil object
@@ -191,7 +195,7 @@ def get_or_create_shape(name, create_fn):
     return create_fn(name)
 
 
-def get_or_load_shape(blend_name, display_name=None):
+def get_or_load_shape(blend_name: str, display_name: str | None = None) -> bpy.types.Object | None:
     """Return or import a named mesh object from the bundled shapes.blend file.
 
     blend_name is the name of the object inside shapes.blend. If display_name is
@@ -214,7 +218,7 @@ def get_or_load_shape(blend_name, display_name=None):
     return bpy.data.objects.get(name)
 
 
-def get_or_create_control_rig_container(skeleton, name):
+def get_or_create_control_rig_container(skeleton: bpy.types.Object, name: str) -> bpy.types.Object:
     """Return or create a named Empty parented to the skeleton for grouping CR_ objects."""
     existing = bpy.data.objects.get(name)
     if existing:
@@ -228,7 +232,7 @@ def get_or_create_control_rig_container(skeleton, name):
     return container
 
 
-def parent_to_control_rig(obj, container):
+def parent_to_control_rig(obj: bpy.types.Object, container: bpy.types.Object) -> None:
     """Link obj to the container's collections, parent it, and hide it from the viewport."""
     for col in container.users_collection:
         if obj.name not in col.objects:
@@ -237,7 +241,7 @@ def parent_to_control_rig(obj, container):
     obj.hide_viewport = True
 
 
-def _wire_shape(name, strokes):
+def _wire_shape(name: str, strokes: list[tuple[list[tuple[float, float, float]], bool]]) -> bpy.types.Object:
     """Create a mesh bone-shape object built from wire edges.
 
     strokes: list of (points_list, cyclic) tuples where points_list is a
@@ -256,7 +260,7 @@ def _wire_shape(name, strokes):
     return bpy.data.objects.new(name, mesh)
 
 
-def create_circle_shape(name):
+def create_circle_shape(name: str) -> bpy.types.Object:
     segment_count = 16
     points = [
         (
@@ -269,7 +273,7 @@ def create_circle_shape(name):
     return _wire_shape(name, [(points, True)])
 
 
-def create_box_shape(name):
+def create_box_shape(name: str) -> bpy.types.Object:
     half_size = 0.5
     coordinates = [
         (-half_size, -half_size, -half_size),
@@ -300,7 +304,7 @@ def create_box_shape(name):
     )
 
 
-def create_diamond_shape(name):
+def create_diamond_shape(name: str) -> bpy.types.Object:
     half_size = 0.5
     coordinates = [
         (0, half_size, 0),
@@ -329,7 +333,7 @@ def create_diamond_shape(name):
     )
 
 
-def create_sphere_shape(name):
+def create_sphere_shape(name: str) -> bpy.types.Object:
     """Unit sphere approximated by three orthogonal circles."""
     segment_count = 16
     xy = [
@@ -359,7 +363,7 @@ def create_sphere_shape(name):
     return _wire_shape(name, [(xy, True), (xz, True), (yz, True)])
 
 
-def create_square_shape(name):
+def create_square_shape(name: str) -> bpy.types.Object:
     """Unit square with crosshairs in the XZ plane."""
     points = [(-1, 0, 1), (1, 0, 1), (1, 0, -1), (-1, 0, -1)]
     return _wire_shape(
@@ -372,7 +376,7 @@ def create_square_shape(name):
     )
 
 
-def _calc_pole_pos(upper_head, upper_tail, lower_tail):
+def _calc_pole_pos(upper_head: mathutils.Vector, upper_tail: mathutils.Vector, lower_tail: mathutils.Vector) -> mathutils.Vector:
     """Calculate the knee/elbow pole target position.
 
     Places the pole at the knee joint, offset along the flipped bisector of the
@@ -400,7 +404,15 @@ def _calc_pole_pos(upper_head, upper_tail, lower_tail):
     return knee + pole_dir * dist
 
 
-def _new_edit_bone(edit_bones, name, head, tail, roll, parent=None, connect=False):
+def _new_edit_bone(
+    edit_bones: bpy.types.ArmatureEditBones,
+    name: str,
+    head: mathutils.Vector,
+    tail: mathutils.Vector,
+    roll: float,
+    parent: bpy.types.EditBone | None = None,
+    connect: bool = False,
+) -> bpy.types.EditBone:
     edit_bone = edit_bones.new(name)
     edit_bone.head, edit_bone.tail, edit_bone.roll, edit_bone.use_deform = (
         head,
@@ -414,11 +426,11 @@ def _new_edit_bone(edit_bones, name, head, tail, roll, parent=None, connect=Fals
     return edit_bone
 
 
-def _connected(head, parent_tail):
+def _connected(head: mathutils.Vector, parent_tail: mathutils.Vector) -> bool:
     return (head - parent_tail).length < 1e-4
 
 
-def _side_color(side):
+def _side_color(side: str) -> tuple[float, float, float]:
     """Return the bone color for a given side: left=yellow, right=green, center=purple."""
     if side == "L":
         return dracula.YELLOW
@@ -427,14 +439,19 @@ def _side_color(side):
     return dracula.PURPLE
 
 
-def _bone_color(pose_bone, color):
+def _bone_color(pose_bone: bpy.types.PoseBone, color: tuple[float, float, float]) -> None:
     pose_bone.color.palette = "CUSTOM"
     pose_bone.color.custom.normal = color
     pose_bone.color.custom.select = tuple(min(1.0, c + 0.2) for c in color)
     pose_bone.color.custom.active = (1.0, 1.0, 1.0)
 
 
-def _assign_shape(pose_bone, shape, use_bone_size=True, scale=1.0):
+def _assign_shape(
+    pose_bone: bpy.types.PoseBone,
+    shape: bpy.types.Object,
+    use_bone_size: bool = True,
+    scale: float | tuple[float, float, float] = 1.0,
+) -> None:
     """Assign a custom shape to a pose bone.
 
     scale can be a float for uniform scaling or a (x, y, z) tuple for per-axis scaling.
@@ -448,12 +465,17 @@ def _assign_shape(pose_bone, shape, use_bone_size=True, scale=1.0):
     pose_bone.custom_shape_wire_width = 3.0
 
 
-def _finger_ctrl_name(system, index):
+def _finger_ctrl_name(system: SystemDict, index: int) -> str:
     """Return the base control bone name for a finger bone at a given index (without CR_ prefix)."""
     return f"{system['name'].capitalize()}.{index + 1:03d}.{system['side']}"
 
 
-def _build_spine_system(edit_bones, system, bone_data, root_edit_bone):
+def _build_spine_system(
+    edit_bones: bpy.types.ArmatureEditBones,
+    system: SystemDict,
+    bone_data: BoneDataDict,
+    root_edit_bone: bpy.types.EditBone,
+) -> tuple[bpy.types.EditBone | None, bpy.types.EditBone, dict[str, bpy.types.EditBone]]:
     """Build spine FK control bones.
 
     Creates Pelvis and Hips at the base and a free Chest at the top.
@@ -508,7 +530,13 @@ def _build_spine_system(edit_bones, system, bone_data, root_edit_bone):
     return hips_edit_bone, chest_edit_bone, deform_to_ctrl
 
 
-def _build_arm_system(edit_bones, system, bone_data, parent_edit_bone, deform_to_ctrl):
+def _build_arm_system(
+    edit_bones: bpy.types.ArmatureEditBones,
+    system: SystemDict,
+    bone_data: BoneDataDict,
+    parent_edit_bone: bpy.types.EditBone,
+    deform_to_ctrl: dict[str, bpy.types.EditBone],
+) -> None:
     """Build arm FK control bones and register them in deform_to_ctrl for finger parenting."""
     side = system["side"]
     arm_root = parent_edit_bone
@@ -564,7 +592,12 @@ def _build_arm_system(edit_bones, system, bone_data, parent_edit_bone, deform_to
     deform_to_ctrl[system["hand"]] = hand_edit_bone
 
 
-def _build_leg_system(edit_bones, system, bone_data, parent_edit_bone):
+def _build_leg_system(
+    edit_bones: bpy.types.ArmatureEditBones,
+    system: SystemDict,
+    bone_data: BoneDataDict,
+    parent_edit_bone: bpy.types.EditBone,
+) -> None:
     """Build leg IK control bones with a reverse-foot roll pivot chain.
 
     Leg_Target (master), Leg_Pole, and all foot pivots are parented to World.
@@ -638,7 +671,12 @@ def _build_leg_system(edit_bones, system, bone_data, parent_edit_bone):
     )
 
 
-def _build_head_system(edit_bones, system, bone_data, parent_edit_bone):
+def _build_head_system(
+    edit_bones: bpy.types.ArmatureEditBones,
+    system: SystemDict,
+    bone_data: BoneDataDict,
+    parent_edit_bone: bpy.types.EditBone,
+) -> None:
     """Build neck and head FK control bones."""
     neck_edit_bone = None
     if system.get("neck") and system["neck"] in bone_data:
@@ -665,7 +703,12 @@ def _build_head_system(edit_bones, system, bone_data, parent_edit_bone):
         )
 
 
-def _build_finger_system(edit_bones, system, bone_data, parent_edit_bone):
+def _build_finger_system(
+    edit_bones: bpy.types.ArmatureEditBones,
+    system: SystemDict,
+    bone_data: BoneDataDict,
+    parent_edit_bone: bpy.types.EditBone,
+) -> None:
     """Build finger FK control bones with consistent role-based names."""
     prev_edit_bone, prev_bone = parent_edit_bone, None
     for i, bone_name in enumerate(system.get("chain") or []):
@@ -684,7 +727,7 @@ def _build_finger_system(edit_bones, system, bone_data, parent_edit_bone):
         prev_edit_bone, prev_bone = control_edit_bone, bone
 
 
-def build_control_bones(armature_data, systems, bone_data):
+def build_control_bones(armature_data: bpy.types.Armature, systems: list[SystemDict], bone_data: BoneDataDict) -> None:
     """Build all control bones on the armature from the classified systems."""
     edit_bones = armature_data.edit_bones
     root_edit_bone = _new_edit_bone(
@@ -730,7 +773,7 @@ def build_control_bones(armature_data, systems, bone_data):
             _build_finger_system(edit_bones, system, bone_data, parent_edit_bone)
 
 
-def _setup_spine_pose(skeleton, system, shapes):
+def _setup_spine_pose(skeleton: bpy.types.Object, system: SystemDict, shapes: dict[str, bpy.types.Object | None]) -> None:
     """Pelvis, hips, and chest as purple circles."""
     pose_bones = skeleton.pose.bones
     pelvis_hips_shape = shapes.get("pelvis_hips") or shapes["circle"]
@@ -748,7 +791,7 @@ def _setup_spine_pose(skeleton, system, shapes):
         _bone_color(pose_bones[chest_name], dracula.PURPLE)
 
 
-def _setup_arm_pose(skeleton, system, shapes):
+def _setup_arm_pose(skeleton: bpy.types.Object, system: SystemDict, shapes: dict[str, bpy.types.Object | None]) -> None:
     """Arm FK bones colored by side: left=yellow, right=green."""
     pose_bones = skeleton.pose.bones
     side = system["side"]
@@ -767,7 +810,7 @@ def _setup_arm_pose(skeleton, system, shapes):
         _bone_color(pose_bones[forearm_name], color)
 
 
-def _setup_leg_pose(skeleton, system, shapes):
+def _setup_leg_pose(skeleton: bpy.types.Object, system: SystemDict, shapes: dict[str, bpy.types.Object | None]) -> None:
     """Reverse foot pivot chain, IK leg constraint, knee swivel. Mechanism bones hidden."""
     pose_bones = skeleton.pose.bones
     side = system["side"]
@@ -796,7 +839,7 @@ def _setup_leg_pose(skeleton, system, shapes):
         pose_bones[ik_target_name].bone.hide = True
 
 
-def _setup_head_pose(skeleton, shapes):
+def _setup_head_pose(skeleton: bpy.types.Object, shapes: dict[str, bpy.types.Object | None]) -> None:
     """Neck and head as purple circles (central controls), head slightly larger."""
     pose_bones = skeleton.pose.bones
     neck_name = f"{CONTROL_PREFIX}Neck"
@@ -809,7 +852,7 @@ def _setup_head_pose(skeleton, shapes):
         _bone_color(pose_bones[head_name], dracula.PURPLE)
 
 
-def _setup_finger_pose(skeleton, system, shapes):
+def _setup_finger_pose(skeleton: bpy.types.Object, system: SystemDict, shapes: dict[str, bpy.types.Object | None]) -> None:
     """Finger FK bones colored by side: left=yellow, right=green."""
     pose_bones = skeleton.pose.bones
     color = _side_color(system["side"])
@@ -822,7 +865,7 @@ def _setup_finger_pose(skeleton, system, shapes):
             _bone_color(pose_bones[control_name], color)
 
 
-def setup_control_rig_pose(skeleton, systems, shapes):
+def setup_control_rig_pose(skeleton: bpy.types.Object, systems: list[SystemDict], shapes: dict[str, bpy.types.Object | None]) -> None:
     """Apply custom shapes, colors, and constraints to all control bones."""
     skeleton.data.pose_position = "POSE"
     pose_bones = skeleton.pose.bones
@@ -850,7 +893,13 @@ def setup_control_rig_pose(skeleton, systems, shapes):
             _setup_finger_pose(skeleton, system, shapes)
 
 
-def setup_spine_splineik(skeleton, systems, context, bone_data, container=None):
+def setup_spine_splineik(
+    skeleton: bpy.types.Object,
+    systems: list[SystemDict],
+    context: bpy.types.Context,
+    bone_data: BoneDataDict,
+    container: bpy.types.Object | None = None,
+) -> None:
     """Create the Spline IK curve for the spine, hooked to CR_Hips and CR_Chest.
 
     The curve is parented to container (or skeleton if None). The Spline IK
@@ -937,7 +986,7 @@ def setup_spine_splineik(skeleton, systems, context, bone_data, container=None):
     bpy.ops.object.mode_set(mode="POSE")
 
 
-def _add_copy_transforms(skeleton, deform_bone, control_bone):
+def _add_copy_transforms(skeleton: bpy.types.Object, deform_bone: str, control_bone: str) -> str:
     pose_bone = skeleton.pose.bones.get(deform_bone)
     if pose_bone is None:
         return f"SKIP {deform_bone}: not found on skeleton"
@@ -952,7 +1001,7 @@ def _add_copy_transforms(skeleton, deform_bone, control_bone):
     return f"OK {deform_bone} → {control_bone_name}"
 
 
-def wire_deform_constraints(skeleton, systems):
+def wire_deform_constraints(skeleton: bpy.types.Object, systems: list[SystemDict]) -> list[str]:
     """Add Copy Transforms constraints on the skeleton wired to each control bone."""
     skeleton.data.pose_position = "POSE"
     log = []
@@ -1037,7 +1086,7 @@ def wire_deform_constraints(skeleton, systems):
     return log
 
 
-def remove_control_rig_bones(skeleton):
+def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
     """Remove all CR_ control bones and any constraints targeting them from the skeleton.
 
     Should be called in POSE mode. Internally switches to EDIT mode to delete bones,

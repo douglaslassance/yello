@@ -20,17 +20,17 @@ class SmoothNormalsOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if context.mode == "OBJECT" and context.selected_objects:
             return True
         return False
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         if self._ratio_key in bpy.context.scene.world:
             self.iterations = bpy.context.scene.world[self._ratio_key]
         return context.window_manager.invoke_props_dialog(self)
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         with SelectionContext() as selection_context:
             for obj in selection_context.selected:
                 obj.data.use_auto_smooth = True
@@ -71,12 +71,12 @@ class ResetNormalsOperator(bpy.types.Operator):
     bl_description = "Remove projected normal from model"
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if context.mode == "OBJECT" and context.selected_objects:
             return True
         return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         with SelectionContext() as selection_context:
             for obj in selection_context.selected:
                 for mod in obj.modifiers:
@@ -118,22 +118,22 @@ class SetMeshColorChannelOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return (
             context.object
             and context.object.type == "MESH"
             and context.mode == "EDIT_MESH"
         )
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         return context.window_manager.invoke_props_dialog(self)
 
     @staticmethod
-    def _set_channel(color_data, layer, channel, value):
+    def _set_channel(color_data: object, layer: object, channel: str, value: float) -> None:
         attribute = "xyzw"[{"Red": 0, "Green": 1, "Blue": 2, "Alpha": 3}[channel]]
         setattr(color_data[layer], attribute, value)
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         with ModeContext("OBJECT"):
             object_ = context.object
             color_attribute = get_active_color_attribute(object_.data, create=True)
