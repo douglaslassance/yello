@@ -50,7 +50,7 @@ class YelloAnimationView3dPanel(Panel):
         col = layout.column(align=True)
         col.operator("object.export_animation", icon="ONIONSKIN_ON")
         col.operator("object.export_animated_mesh", icon="MOD_SOFT")
-        col.operator("armature.export_control_rig_animations", icon="RENDER_ANIMATION")
+        col.operator("armature.export_actions", icon="RENDER_ANIMATION")
 
 
 class YelloShadingView3dPanel(Panel):
