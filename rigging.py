@@ -28,11 +28,9 @@ def classify_bones(bone_names: list[str]) -> tuple[list[SystemDict] | None, str,
     or (None, error_message, raw).
     """
     bone_list = "\n".join(f"  - {n}" for n in sorted(bone_names))
-    user_msg = _load_prompt("classify_bones_user.md").replace("{bone_list}", bone_list)
-    system_msg = _load_prompt("classify_bones_system.md")
+    prompt = _load_prompt("classify_bones.md").replace("{bone_list}", bone_list)
     messages = [
-        {"role": "system", "content": system_msg},
-        {"role": "user", "content": user_msg},
+        {"role": "user", "content": prompt},
     ]
     try:
         raw = ollama.chat(messages)
