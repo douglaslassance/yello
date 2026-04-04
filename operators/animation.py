@@ -1,6 +1,8 @@
 import os
 import bpy
-from ..contexts import SelectionContext
+import datetime
+
+from ..contexts import DisabledConstraintsContext, SelectionContext, VisibleContext
 
 from .. import functions
 from .. import rigging
@@ -112,17 +114,44 @@ class ExportActionsOperator(bpy.types.Operator):
         if self.include_children:
             objects += functions.get_children(skeleton, recursive=True)
 
-        source_actions = [a for a in bpy.data.actions if not a.name.endswith("_Baked")]
-        if not source_actions:
+        actions = list(bpy.data.actions)
+        if not actions:
             self.report({"WARNING"}, "No actions to bake.")
             return {"CANCELLED"}
 
         initial_active = context.view_layer.objects.active
 
-        for action in source_actions:
-            baked = rigging.bake_action_to_skeleton(context, skeleton, action)
-            if baked:
-                self.report({"INFO"}, f"Baked: {baked.name}")
+        for action in actions:
+            rigging.bake_action_to_skeleton(context, skeleton, action)
+            self.report({"INFO"}, f"Baked: {action.name}")
+
+        filename = os.path.splitext(bpy.data.filepath)[0] + ".glb"
+        year = datetime.datetime.now().year
+        functions.make_writable(filename)
+        with VisibleContext(skeleton):
+            with DisabledConstraintsContext(skeleton), SelectionContext():
+                functions.select_objects(objects)
+                bpy.ops.export_scene.gltf(
+                    filepath=filename,
+                    check_existing=False,
+                    use_selection=True,
+                    use_visible=False,
+                    export_yup=True,
+                    export_reset_pose_bones=True,
+                    # export_morph=True,
+                    export_copyright=f"© {year} Playsthetic",
+                    export_format="GLB",
+                    # export_materials="NONE",
+                    export_all_vertex_colors=True,
+                    export_bake_animation=False,
+                    export_merge_animation="NONE",
+                    export_apply=True,
+                    # export_def_bones=True,
+                    export_animations=True,
+                    export_animation_mode="ACTIONS",
+                    # export_armature_object_remove=True,
+                    will_save_settings=True,
+                )
 
         context.view_layer.objects.active = initial_active
         return {"FINISHED"}

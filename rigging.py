@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import dracula
 from . import ollama
+from .contexts import VisibleContext
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 _ASSETS_DIR = Path(__file__).parent / "assets"
@@ -1089,18 +1090,19 @@ def bake_action_to_skeleton(context, skeleton, action):
     frame_start = int(action.frame_range[0])
     frame_end = int(action.frame_range[1])
 
-    context.view_layer.objects.active = skeleton
-    bpy.ops.object.mode_set(mode="POSE")
-    bpy.ops.nla.bake(
-        frame_start=frame_start,
-        frame_end=frame_end,
-        only_selected=False,
-        visual_keying=True,
-        clear_constraints=False,
-        use_current_action=False,
-        bake_types={"POSE"},
-    )
-    bpy.ops.object.mode_set(mode="OBJECT")
+    with VisibleContext(skeleton):
+        context.view_layer.objects.active = skeleton
+        bpy.ops.object.mode_set(mode="POSE")
+        bpy.ops.nla.bake(
+            frame_start=frame_start,
+            frame_end=frame_end,
+            only_selected=False,
+            visual_keying=True,
+            clear_constraints=False,
+            use_current_action=False,
+            bake_types={"POSE"},
+        )
+        bpy.ops.object.mode_set(mode="OBJECT")
 
     baked = skeleton.animation_data.action if skeleton.animation_data else None
     if baked:
