@@ -151,8 +151,15 @@ def duplicate_object(obj):
         return bpy.context.selected_objects[0]
 
 
-def export_fbx(objects, filename):
-    """https://docs.blender.org/api/current/bpy.ops.export_scene.html#module-bpy.ops.export_scene"""
+def export_fbx(
+    objects,
+    filename,
+    animations=False,
+    object_types=None,
+):
+    """Export objects to FBX with rigging-friendly defaults."""
+    if object_types is None:
+        object_types = {"MESH", "ARMATURE"}
     with contexts.SelectionContext():
         select_objects(objects)
         make_writable(filename)
@@ -163,17 +170,16 @@ def export_fbx(objects, filename):
             armature_nodetype="NULL",
             axis_forward="-Z",
             axis_up="Y",
-            bake_anim=False,
+            bake_anim=animations,
             bake_space_transform=False,
             filepath=filename,
             global_scale=1.0,
             mesh_smooth_type="FACE",
-            object_types={"MESH", "ARMATURE"},
+            object_types=object_types,
             primary_bone_axis="Y",
             secondary_bone_axis="X",
             use_selection=True,
             use_space_transform=True,
-            use_visible=True,
         )
 
 
