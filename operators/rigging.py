@@ -6,7 +6,6 @@ from .. import functions
 from ..contexts import CursorContext, ModeContext
 from .. import ollama
 from .. import rigging
-from ..rigging import CONTROL_PREFIX
 
 
 class AlignBoneRollsOperator(bpy.types.Operator):
@@ -329,32 +328,32 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         shapes = {
             "circle": rigging.get_or_create_shape(
-                f"{CONTROL_PREFIX}Circle_Shape", rigging.create_circle_shape
+                "Circle_Shape", rigging.create_circle_shape
             ),
             "box": rigging.get_or_create_shape(
-                f"{CONTROL_PREFIX}Box_Shape", rigging.create_box_shape
+                "Box_Shape", rigging.create_box_shape
             ),
             "diamond": rigging.get_or_create_shape(
-                f"{CONTROL_PREFIX}Diamond_Shape", rigging.create_diamond_shape
+                "Diamond_Shape", rigging.create_diamond_shape
             ),
             "sphere": rigging.get_or_create_shape(
-                f"{CONTROL_PREFIX}Sphere_Shape", rigging.create_sphere_shape
+                "Sphere_Shape", rigging.create_sphere_shape
             ),
             "square": rigging.get_or_create_shape(
-                f"{CONTROL_PREFIX}Square_Shape", rigging.create_square_shape
+                "Square_Shape", rigging.create_square_shape
             ),
             "master": rigging.get_or_load_shape(
-                "base_controller.034", f"{CONTROL_PREFIX}base_controller.034"
+                "base_controller.034", "base_controller.034"
             ),
             "pelvis_hips": rigging.get_or_load_shape(
-                "other_controller.003", f"{CONTROL_PREFIX}other_controller.003"
+                "other_controller.003", "other_controller.003"
             ),
         }
         shapes_container = rigging.get_or_create_control_rig_container(
-            skeleton, f"{CONTROL_PREFIX}Shapes"
+            skeleton, "Shapes"
         )
         curves_container = rigging.get_or_create_control_rig_container(
-            skeleton, f"{CONTROL_PREFIX}Curves"
+            skeleton, "Curves"
         )
         for shape in shapes.values():
             if shape is not None:
@@ -362,7 +361,9 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode="POSE")
         rigging.setup_control_rig_pose(skeleton, systems, shapes)
-        rigging.setup_spine_splineik(skeleton, systems, context, bone_data, curves_container)
+        rigging.setup_spine_splineik(
+            skeleton, systems, context, bone_data, curves_container
+        )
         bpy.ops.object.mode_set(mode="OBJECT")
 
         bpy.ops.object.mode_set(mode="POSE")
@@ -387,7 +388,7 @@ class RemoveControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.remove_control_rig"
     bl_label = "Remove Control Rig"
     bl_description = (
-        "Remove all CR_ control bones and their constraints from the armature."
+        "Remove all control bones and their constraints from the armature."
     )
 
     @classmethod
@@ -397,16 +398,18 @@ class RemoveControlRigOperator(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
-        control_bone_names = [b.name for b in skeleton.data.bones if b.name.startswith(CONTROL_PREFIX)]
+        control_bone_names = [
+            b.name for b in skeleton.data.bones if "_Control" in b.name
+        ]
         if not control_bone_names:
             self.report({"WARNING"}, "No control rig bones found.")
             return {"CANCELLED"}
         bpy.ops.object.mode_set(mode="POSE")
         rigging.remove_control_rig_bones(skeleton)
-        spine_curve = bpy.data.objects.get(f"{CONTROL_PREFIX}Spine_Curve")
+        spine_curve = bpy.data.objects.get("Spine_Curve")
         if spine_curve:
             bpy.data.objects.remove(spine_curve, do_unlink=True)
-        for container_name in (f"{CONTROL_PREFIX}Shapes", f"{CONTROL_PREFIX}Curves"):
+        for container_name in ("Shapes", "Curves"):
             container = bpy.data.objects.get(container_name)
             if container:
                 bpy.data.objects.remove(container, do_unlink=True)
