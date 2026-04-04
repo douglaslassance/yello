@@ -128,6 +128,11 @@ class SetMeshColorChannelOperator(bpy.types.Operator):
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
+    @staticmethod
+    def _set_channel(color_data, layer, channel, value):
+        attribute = "xyzw"[{"Red": 0, "Green": 1, "Blue": 2, "Alpha": 3}[channel]]
+        setattr(color_data[layer], attribute, value)
+
     def execute(self, context):
         with ModeContext("OBJECT"):
             object_ = context.object
@@ -140,36 +145,21 @@ class SetMeshColorChannelOperator(bpy.types.Operator):
 
             if domain == "CORNER":
                 loops = []
-                # If we are in face mode we set value for the selected faces only.
                 if bpy.context.tool_settings.mesh_select_mode[2]:
                     for face in bm.faces:
                         if face.select:
                             loops += face.loops
                 else:
-                    for vertice in bm.verts:
-                        if vertice.select:
-                            loops += list(vertice.link_loops)
+                    for vertex in bm.verts:
+                        if vertex.select:
+                            loops += list(vertex.link_loops)
                 for loop in loops:
-                    if self.channel == "Red":
-                        loop[layer].x = self.value
-                    elif self.channel == "Green":
-                        loop[layer].y = self.value
-                    elif self.channel == "Blue":
-                        loop[layer].z = self.value
-                    elif self.channel == "Alpha":
-                        loop[layer].w = self.value
+                    self._set_channel(loop, layer, self.channel, self.value)
 
             elif domain == "POINT":
-                for vert in bm.verts:
-                    if vert.select:
-                        if self.channel == "Red":
-                            vert[layer].x = self.value
-                        elif self.channel == "Green":
-                            vert[layer].y = self.value
-                        elif self.channel == "Blue":
-                            vert[layer].z = self.value
-                        elif self.channel == "Alpha":
-                            vert[layer].w = self.value
+                for vertex in bm.verts:
+                    if vertex.select:
+                        self._set_channel(vertex, layer, self.channel, self.value)
 
             bm.to_mesh(object_.data)
         return {"FINISHED"}
