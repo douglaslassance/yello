@@ -10,7 +10,7 @@ from bmesh.types import BMesh, BMLayerItem
 from . import contexts
 
 
-def create_collection(name="Collection", find_existing=True):
+def create_collection(name="Collection"):
     if name not in bpy.data.collections:
         collection = bpy.data.collections.new(name)
         bpy.context.scene.collection.children.link(collection)
@@ -40,10 +40,6 @@ def remove_object_from_all_collections(obj):
     for col in obj.users_collection:
         col.objects.unlink(obj)
     bpy.data.scenes["Scene"].collection.objects.link(obj)
-
-
-def map_values(value, old_min, old_max, new_max, new_min):
-    return (((value - old_min) * (new_max - new_min)) / (old_max - old_min)) + new_min
 
 
 def run_command(command: list):
@@ -105,31 +101,8 @@ def make_writable(filename):
     return run_gitalong_command(command)
 
 
-def is_ancestor_bone(ancestor, descendant):
-    """Returns whether a bone is an ancestor (a remote parent) of another one.
-
-    Args:
-        ancestor ([type]): [description]
-        descendant ([type]): [description]
-
-    Returns:
-        [type]: [description]
-    """
-    bone = descendant
-    while bone.parent:
-        if bone.parent == ancestor:
-            return True
-        bone = bone.parent
-    return False
-
-
 def get_projected_vector(vector: mathutils.Vector, normal: mathutils.Vector):
-    """[summary]
-
-    Args:
-        vector (mathutils.Vector): The vector to project. normal (mathutils.Vector): The
-        normal of the plane to project onto. Expects a normalized vector.
-    """
+    """Project a vector onto a plane defined by a normalized normal vector."""
     return vector - normal * vector.dot(normal)
 
 
