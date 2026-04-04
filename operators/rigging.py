@@ -3,7 +3,7 @@ import math
 import mathutils
 
 from .. import functions
-from ..contexts import CursorContext, ModeContext, SelectionContext
+from ..contexts import CursorContext, ModeContext
 from .. import ollama
 from .. import rigging
 from ..rigging import CONTROL_PREFIX
@@ -298,9 +298,8 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         if self.apply_transform:
             objects = [skeleton] + functions.get_children(skeleton, recursive=True)
-            with SelectionContext():
-                functions.select_objects(objects)
-                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            for obj in objects:
+                functions.apply_transforms(obj)
 
         bone_names = [b.name for b in skeleton.data.bones]
         systems, message, raw = rigging.classify_bones(bone_names)
