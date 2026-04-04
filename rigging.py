@@ -1042,6 +1042,73 @@ def wire_deform_constraints(skeleton, control_rig, systems):
     return log
 
 
+def find_control_rig():
+    """Return the first (control_rig, skeleton) pair found in the scene, or (None, None)."""
+    for obj in bpy.data.objects:
+        if obj.type == "ARMATURE" and obj.name.endswith("_ControlRig"):
+            skeleton = bpy.data.objects.get(obj.name[: -len("_ControlRig")])
+            if skeleton is not None:
+                return obj, skeleton
+    return None, None
+
+
+def _find_animation_driver(skeleton):
+    """Return the armature driving this skeleton via Copy Transforms constraints, or None."""
+    for pose_bone in skeleton.pose.bones:
+        for constraint in pose_bone.constraints:
+            if constraint.type == "COPY_TRANSFORMS" and constraint.target:
+                if constraint.target.type == "ARMATURE":
+                    return constraint.target
+    return None
+
+
+def bake_action_to_skeleton(context, skeleton, action):
+    """Bake an action onto the skeleton by capturing its visual pose.
+
+    If the skeleton is driven by another armature (e.g. a control rig) the action
+    is assigned there so constraints evaluate correctly. Any pre-existing baked
+    action with the target name is removed first so re-runs stay clean.
+
+    Returns the newly created action, or None if the bake produced nothing.
+    """
+    baked_name = action.name + "_Baked"
+    existing = bpy.data.actions.get(baked_name)
+    if existing:
+        bpy.data.actions.remove(existing)
+
+    driver = _find_animation_driver(skeleton)
+    if driver:
+        if driver.animation_data is None:
+            driver.animation_data_create()
+        driver.animation_data.action = action
+
+    if skeleton.animation_data is None:
+        skeleton.animation_data_create()
+    skeleton.animation_data.action = None
+
+    frame_start = int(action.frame_range[0])
+    frame_end = int(action.frame_range[1])
+
+    context.view_layer.objects.active = skeleton
+    bpy.ops.object.mode_set(mode="POSE")
+    bpy.ops.nla.bake(
+        frame_start=frame_start,
+        frame_end=frame_end,
+        only_selected=False,
+        visual_keying=True,
+        clear_constraints=False,
+        use_current_action=False,
+        bake_types={"POSE"},
+    )
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    baked = skeleton.animation_data.action if skeleton.animation_data else None
+    if baked:
+        baked.name = baked_name
+        skeleton.animation_data.action = None
+    return baked
+
+
 def cleanup_existing_control_rig(skeleton):
     for pose_bone in skeleton.pose.bones:
         for constraint in list(pose_bone.constraints):

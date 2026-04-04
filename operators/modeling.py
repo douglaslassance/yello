@@ -11,7 +11,7 @@ class ExportMeshOperator(bpy.types.Operator):
     bl_description = "Export selected meshes and armatures to a single FBX"
 
     file_format: bpy.props.EnumProperty(
-        name="File format",
+        name="File Format",
         description="The file format to export.",
         items=[
             ("FBX", "FBX", "FBX"),
@@ -20,12 +20,12 @@ class ExportMeshOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     join_meshes: bpy.props.BoolProperty(
-        name="Join meshes",
+        name="Join Meshes",
         description="Join selected meshes in a single mesh.",
     )  # pyright: ignore [reportInvalidTypeForm]
 
     include_children: bpy.props.BoolProperty(
-        name="Include children",
+        name="Include Children",
         description="Will add all children from selected parents.",
     )  # pyright: ignore [reportInvalidTypeForm]
 
@@ -86,7 +86,7 @@ class ExportMeshesOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     remove_pre_existing: bpy.props.BoolProperty(
-        name="Remove pre-existing files",
+        name="Remove Pre-Existing Files",
         default=False,
         description="Remove pre-existing FBX files that match this export prefix",
     )  # pyright: ignore [reportInvalidTypeForm]
