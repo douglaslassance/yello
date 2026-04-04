@@ -12,10 +12,10 @@ class MakeWritableOperator(bpy.types.Operator):
     bl_description = "Perform a Gitarmony make writable on the current file"
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return bool(bpy.data.filepath)
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         functions.make_writable(bpy.data.filepath)
         return {"FINISHED"}
 
@@ -25,10 +25,10 @@ class OpenContainingFolderOperator(bpy.types.Operator):
     bl_label = "Open Containing Folder"
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return bool(bpy.data.filepath)
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         filepath = bpy.data.filepath
         if platform.system() == "Windows":
             subprocess.Popen(["explorer", "/select,", filepath])

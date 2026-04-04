@@ -1,4 +1,5 @@
 # pylint: disable=invalid-name
+import bpy
 from bpy.types import Panel
 
 
@@ -9,7 +10,7 @@ class YelloFileView3dPanel(Panel):
     bl_category = "Yello"
     bl_order = 0
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
         col.operator("object.make_writable", icon="OUTLINER_DATA_GP_LAYER")
@@ -23,7 +24,7 @@ class YelloRiggingView3dPanel(Panel):
     bl_category = "Yello"
     bl_order = 2
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
         col.operator("pose.create_bone_aligned_object", icon="EMPTY_DATA")
@@ -45,7 +46,7 @@ class YelloAnimationView3dPanel(Panel):
     bl_category = "Yello"
     bl_order = 3
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
         col.operator("object.export_animation", icon="ONIONSKIN_ON")
@@ -60,7 +61,7 @@ class YelloShadingView3dPanel(Panel):
     bl_category = "Yello"
     bl_order = 4
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
         col.operator("object.smooth_normals", icon="MOD_SMOOTH")
@@ -75,7 +76,7 @@ class YelloModelingView3dPanel(Panel):
     bl_category = "Yello"
     bl_order = 1
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
         col.operator("object.slice_meshes_with_collection", icon="MOD_BUILD")

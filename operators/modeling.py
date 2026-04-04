@@ -30,16 +30,16 @@ class ExportMeshOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if bpy.data.filepath:
             if context.mode and context.selected_objects:
                 return True
         return False
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         return context.window_manager.invoke_props_dialog(self)
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         exports = bpy.context.selected_objects
         if self.include_children:
             for obj in bpy.context.selected_objects:
@@ -92,18 +92,18 @@ class ExportMeshesOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if bpy.data.filepath:
             if context.mode and context.selected_objects:
                 return True
         return False
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         basename = os.path.basename(bpy.data.filepath)
         self.prefix = os.path.splitext(basename)[0]
         return context.window_manager.invoke_props_dialog(self)
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         selection = bpy.context.selected_objects
         dirname, basename = os.path.split(bpy.data.filepath)
         if self.remove_pre_existing:
@@ -118,7 +118,7 @@ class ExportMeshesOperator(bpy.types.Operator):
             functions.export_fbx([object], filename)
         return {"FINISHED"}
 
-    def find_pre_existing(self, dirname, prefix):
+    def find_pre_existing(self, dirname: str, prefix: str) -> list[str]:
         """Find FBX files corresponding to this scene file export."""
         fbx_files = []
         for basename in os.listdir(dirname):
@@ -135,12 +135,12 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
     )
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         if context.mode == "OBJECT" and context.selected_objects:
             return True
         return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         sources = bpy.context.selected_objects
         collection = bpy.context.collection
         collection_objects = collection.objects

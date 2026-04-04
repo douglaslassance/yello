@@ -1,14 +1,15 @@
 import json
 import urllib.error
 import urllib.request
+from typing import Any
 
-URL = "http://localhost:11434"
-MODEL = "mistral:latest"
-TIMEOUT_PING = 3
-TIMEOUT_INFER = 60
+URL: str = "http://localhost:11434"
+MODEL: str = "mistral:latest"
+TIMEOUT_PING: int = 3
+TIMEOUT_INFER: int = 60
 
 
-def reachable():
+def reachable() -> bool:
     try:
         with urllib.request.urlopen(f"{URL}/api/tags", timeout=TIMEOUT_PING) as r:
             return r.status == 200
@@ -16,7 +17,12 @@ def reachable():
         return False
 
 
-def chat(messages, model=None, temperature=0.0, format="json"):
+def chat(
+    messages: list[dict[str, str]],
+    model: str | None = None,
+    temperature: float = 0.0,
+    format: str = "json",
+) -> str:
     """Send a chat request to Ollama. Returns the content string.
 
     Raises urllib.error.HTTPError or OSError on failure.
