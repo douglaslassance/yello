@@ -2,9 +2,9 @@ import json
 import urllib.error
 import urllib.request
 
-URL           = "http://localhost:11434"
-MODEL         = "mistral:latest"
-TIMEOUT_PING  = 3
+URL = "http://localhost:11434"
+MODEL = "mistral:latest"
+TIMEOUT_PING = 3
 TIMEOUT_INFER = 60
 
 

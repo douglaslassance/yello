@@ -99,19 +99,19 @@ class SetMeshColorChannelOperator(bpy.types.Operator):
     )
 
     channel: bpy.props.EnumProperty(
-        name="Channel",  # noqa: F821
-        description="The channel we want to set.",  # noqa: F722
+        name="Channel",
+        description="The channel we want to set.",
         items=[
-            ("Red", "Red", "Red"),  # noqa: F821
-            ("Green", "Green", "Green"),  # noqa: F821
-            ("Blue", "Blue", "Blue"),  # noqa: F821
-            ("Alpha", "Alpha", "Alpha"),  # noqa: F821
+            ("Red", "Red", "Red"),
+            ("Green", "Green", "Green"),
+            ("Blue", "Blue", "Blue"),
+            ("Alpha", "Alpha", "Alpha"),
         ],
     )  # pyright: ignore [reportInvalidTypeForm]
 
     value: bpy.props.FloatProperty(
-        name="Value",  # noqa: F821
-        description="The value to set.",  # noqa: F722
+        name="Value",
+        description="The value to set.",
         min=0.0,
         max=1.0,
         default=1.0,
