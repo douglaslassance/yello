@@ -6,6 +6,7 @@ from .. import functions
 from ..contexts import CursorContext, ModeContext, SelectionContext
 from .. import ollama
 from .. import rigging
+from ..rigging import CONTROL_PREFIX
 
 
 class AlignBoneRollsOperator(bpy.types.Operator):
@@ -329,32 +330,32 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         shapes = {
             "circle": rigging.get_or_create_shape(
-                "CR_Circle_Shape", rigging.create_circle_shape
+                f"{CONTROL_PREFIX}Circle_Shape", rigging.create_circle_shape
             ),
             "box": rigging.get_or_create_shape(
-                "CR_Box_Shape", rigging.create_box_shape
+                f"{CONTROL_PREFIX}Box_Shape", rigging.create_box_shape
             ),
             "diamond": rigging.get_or_create_shape(
-                "CR_Diamond_Shape", rigging.create_diamond_shape
+                f"{CONTROL_PREFIX}Diamond_Shape", rigging.create_diamond_shape
             ),
             "sphere": rigging.get_or_create_shape(
-                "CR_Sphere_Shape", rigging.create_sphere_shape
+                f"{CONTROL_PREFIX}Sphere_Shape", rigging.create_sphere_shape
             ),
             "square": rigging.get_or_create_shape(
-                "CR_Square_Shape", rigging.create_square_shape
+                f"{CONTROL_PREFIX}Square_Shape", rigging.create_square_shape
             ),
             "master": rigging.get_or_load_shape(
-                "base_controller.034", "CR_base_controller.034"
+                "base_controller.034", f"{CONTROL_PREFIX}base_controller.034"
             ),
             "pelvis_hips": rigging.get_or_load_shape(
-                "other_controller.003", "CR_other_controller.003"
+                "other_controller.003", f"{CONTROL_PREFIX}other_controller.003"
             ),
         }
         shapes_container = rigging.get_or_create_control_rig_container(
-            skeleton, "CR_Shapes"
+            skeleton, f"{CONTROL_PREFIX}Shapes"
         )
         curves_container = rigging.get_or_create_control_rig_container(
-            skeleton, "CR_Curves"
+            skeleton, f"{CONTROL_PREFIX}Curves"
         )
         for shape in shapes.values():
             if shape is not None:
@@ -397,16 +398,16 @@ class RemoveControlRigOperator(bpy.types.Operator):
 
     def execute(self, context):
         skeleton = context.object
-        control_bone_names = [b.name for b in skeleton.data.bones if b.name.startswith("CR_")]
+        control_bone_names = [b.name for b in skeleton.data.bones if b.name.startswith(CONTROL_PREFIX)]
         if not control_bone_names:
             self.report({"WARNING"}, "No control rig bones found.")
             return {"CANCELLED"}
         bpy.ops.object.mode_set(mode="POSE")
         rigging.remove_control_rig_bones(skeleton)
-        spine_curve = bpy.data.objects.get("CR_Spine_Curve")
+        spine_curve = bpy.data.objects.get(f"{CONTROL_PREFIX}Spine_Curve")
         if spine_curve:
             bpy.data.objects.remove(spine_curve, do_unlink=True)
-        for container_name in ("CR_Shapes", "CR_Curves"):
+        for container_name in (f"{CONTROL_PREFIX}Shapes", f"{CONTROL_PREFIX}Curves"):
             container = bpy.data.objects.get(container_name)
             if container:
                 bpy.data.objects.remove(container, do_unlink=True)
