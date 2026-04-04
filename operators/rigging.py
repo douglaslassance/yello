@@ -15,14 +15,14 @@ class AlignBoneRollsOperator(bpy.types.Operator):
     bl_description = "Align bone rolls to the plane formed by the angle between bones."
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
         if obj is not None:
             if obj.mode == "EDIT":
                 return True
         return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         bones, error = functions.validate_bone_chain(context.editable_bones)
         if error:
             self.report({"ERROR"}, error)
@@ -57,14 +57,14 @@ class AlignBonesOperator(bpy.types.Operator):
     bl_description = "Align bones to the plane formed by the angle between the first and last bone of a chain."
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
         if obj is not None:
             if obj.mode == "EDIT":
                 return True
         return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         bones, error = functions.validate_bone_chain(context.editable_bones)
         if error:
             self.report({"ERROR"}, error)
@@ -86,14 +86,14 @@ class CreateBoneAlignedObjectOperator(bpy.types.Operator):
     bl_description = "Creates an empty object aligned to the active bone in pose mode."
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
         if obj is not None:
             if obj.mode == "POSE":
                 return True
         return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         pose_bone = context.active_pose_bone
         if not pose_bone:
             self.report({"ERROR"}, "One bone should be selected and active.")
@@ -116,14 +116,14 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
     bl_description = "Straighen a chain and distribute bone length evenly."
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
         if obj is not None:
             if obj.mode == "EDIT":
                 return True
         return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         bones, error = functions.validate_bone_chain(context.editable_bones)
         if error:
             self.report({"ERROR"}, error)
@@ -152,14 +152,14 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
     count: bpy.props.IntProperty(name="Count", default=3)
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
         if obj is not None:
             if obj.mode == "EDIT":
                 return True
         return False
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         bones = context.editable_bones
         if not bones:
             self.report({"ERROR"}, "At least one bone should be selected")
@@ -168,7 +168,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
             self.count = bpy.context.scene.world[self._count_key]
         return context.window_manager.invoke_props_dialog(self)
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         bones = context.editable_bones
         for bone in bones:
             length = bone.length / float(self.count)
@@ -212,14 +212,14 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
     )
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
         if obj is not None:
             if obj.mode == "EDIT":
                 return True
         return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         bones, error = functions.validate_bone_chain(context.editable_bones)
         if error:
             self.report({"ERROR"}, error)
@@ -277,20 +277,20 @@ class BuildControlRigOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
         return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         return context.window_manager.invoke_props_dialog(self, width=300)
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context) -> None:
         if not ollama.reachable():
             self.layout.label(text="Ollama is offline.", icon="ERROR")
             self.layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
         self.layout.prop(self, "apply_transform")
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
 
         if not ollama.reachable():
@@ -391,11 +391,11 @@ class RemoveControlRigOperator(bpy.types.Operator):
     )
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
         return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
         control_bone_names = [b.name for b in skeleton.data.bones if b.name.startswith(CONTROL_PREFIX)]
         if not control_bone_names:
@@ -420,14 +420,14 @@ class NormalizeBoneRollOperator(bpy.types.Operator):
     bl_description = "Set the roll closest to zero."
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
         if obj is not None:
             if obj.mode == "EDIT":
                 return True
         return False
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         bones = context.editable_bones
         for bone in bones:
             roll = bone.roll
