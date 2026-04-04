@@ -106,6 +106,24 @@ def get_projected_vector(vector: mathutils.Vector, normal: mathutils.Vector):
     return vector - normal * vector.dot(normal)
 
 
+def validate_bone_chain(editable_bones, minimum=2):
+    """Validate that editable bones form a connected chain of at least minimum length.
+
+    Returns the chain sorted root-to-tip, or None if validation fails.
+    The second return value is an error message (or None on success).
+    """
+    if not editable_bones or len(editable_bones) < minimum:
+        return None, f"A minimum of {minimum} bones should be selected"
+    bones = list(editable_bones)
+    bones.reverse()
+    for bone in bones[:-1]:
+        parent_index = bones.index(bone) + 1
+        if bone.parent != bones[parent_index]:
+            return None, "Selected bones need to be connected"
+    bones.reverse()
+    return bones, None
+
+
 def select_objects(objects):
     bpy.ops.object.select_all(action="DESELECT")
     for obj in objects:
