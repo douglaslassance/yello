@@ -12,7 +12,6 @@ from . import ollama
 
 _PROMPTS_DIR: Path = Path(__file__).parent / "prompts"
 _ASSETS_DIR: Path = Path(__file__).parent / "assets"
-CONTROL_PREFIX: str = "CR_"
 
 SystemDict = dict[str, Any]
 BoneDataDict = dict[str, dict[str, Any]]
@@ -57,7 +56,9 @@ def classify_bones(bone_names: list[str]) -> tuple[list[SystemDict] | None, str,
         return None, f"Ollama error: {exc}", ""
 
 
-def _parse_systems(data: dict[str, Any], bone_names: list[str]) -> list[SystemDict] | None:
+def _parse_systems(
+    data: dict[str, Any], bone_names: list[str]
+) -> list[SystemDict] | None:
     """Parse the systems array from Ollama JSON into validated dicts with resolved bone names."""
     lookup = {n.strip().lower(): n for n in bone_names}
 
@@ -180,7 +181,9 @@ def extract_bone_names(systems: list[SystemDict]) -> set[str]:
     return names
 
 
-def get_or_create_shape(name: str, create_fn: Callable[[str], bpy.types.Object]) -> bpy.types.Object:
+def get_or_create_shape(
+    name: str, create_fn: Callable[[str], bpy.types.Object]
+) -> bpy.types.Object:
     """Return or create a mesh object to use as a custom bone shape.
 
     Any existing object of a different type (e.g. a stale Grease Pencil object
@@ -195,7 +198,9 @@ def get_or_create_shape(name: str, create_fn: Callable[[str], bpy.types.Object])
     return create_fn(name)
 
 
-def get_or_load_shape(blend_name: str, display_name: str | None = None) -> bpy.types.Object | None:
+def get_or_load_shape(
+    blend_name: str, display_name: str | None = None
+) -> bpy.types.Object | None:
     """Return or import a named mesh object from the bundled shapes.blend file.
 
     blend_name is the name of the object inside shapes.blend. If display_name is
@@ -218,7 +223,9 @@ def get_or_load_shape(blend_name: str, display_name: str | None = None) -> bpy.t
     return bpy.data.objects.get(name)
 
 
-def get_or_create_control_rig_container(skeleton: bpy.types.Object, name: str) -> bpy.types.Object:
+def get_or_create_control_rig_container(
+    skeleton: bpy.types.Object, name: str
+) -> bpy.types.Object:
     """Return or create a named Empty parented to the skeleton for grouping CR_ objects."""
     existing = bpy.data.objects.get(name)
     if existing:
@@ -241,7 +248,9 @@ def parent_to_control_rig(obj: bpy.types.Object, container: bpy.types.Object) ->
     obj.hide_viewport = True
 
 
-def _wire_shape(name: str, strokes: list[tuple[list[tuple[float, float, float]], bool]]) -> bpy.types.Object:
+def _wire_shape(
+    name: str, strokes: list[tuple[list[tuple[float, float, float]], bool]]
+) -> bpy.types.Object:
     """Create a mesh bone-shape object built from wire edges.
 
     strokes: list of (points_list, cyclic) tuples where points_list is a
@@ -376,7 +385,11 @@ def create_square_shape(name: str) -> bpy.types.Object:
     )
 
 
-def _calc_pole_pos(upper_head: mathutils.Vector, upper_tail: mathutils.Vector, lower_tail: mathutils.Vector) -> mathutils.Vector:
+def _calc_pole_pos(
+    upper_head: mathutils.Vector,
+    upper_tail: mathutils.Vector,
+    lower_tail: mathutils.Vector,
+) -> mathutils.Vector:
     """Calculate the knee/elbow pole target position.
 
     Places the pole at the knee joint, offset along the flipped bisector of the
@@ -439,7 +452,9 @@ def _side_color(side: str) -> tuple[float, float, float]:
     return dracula.PURPLE
 
 
-def _bone_color(pose_bone: bpy.types.PoseBone, color: tuple[float, float, float]) -> None:
+def _bone_color(
+    pose_bone: bpy.types.PoseBone, color: tuple[float, float, float]
+) -> None:
     pose_bone.color.palette = "CUSTOM"
     pose_bone.color.custom.normal = color
     pose_bone.color.custom.select = tuple(min(1.0, c + 0.2) for c in color)
@@ -466,8 +481,8 @@ def _assign_shape(
 
 
 def _finger_ctrl_name(system: SystemDict, index: int) -> str:
-    """Return the base control bone name for a finger bone at a given index (without CR_ prefix)."""
-    return f"{system['name'].capitalize()}.{index + 1:03d}.{system['side']}"
+    """Return the control bone name for a finger bone at a given index."""
+    return f"{system['name'].capitalize()}.{index + 1:03d}_Control.{system['side']}"
 
 
 def _build_spine_system(
@@ -475,7 +490,9 @@ def _build_spine_system(
     system: SystemDict,
     bone_data: BoneDataDict,
     root_edit_bone: bpy.types.EditBone,
-) -> tuple[bpy.types.EditBone | None, bpy.types.EditBone, dict[str, bpy.types.EditBone]]:
+) -> tuple[
+    bpy.types.EditBone | None, bpy.types.EditBone, dict[str, bpy.types.EditBone]
+]:
     """Build spine FK control bones.
 
     Creates Pelvis and Hips at the base and a free Chest at the top.
@@ -492,7 +509,7 @@ def _build_spine_system(
         bone_len = (bone["tail"] - bone["head"]).length
         pelvis_edit_bone = _new_edit_bone(
             edit_bones,
-            f"{CONTROL_PREFIX}Pelvis",
+            "Pelvis_Control",
             bone["head"],
             bone["tail"],
             bone["roll"],
@@ -503,7 +520,7 @@ def _build_spine_system(
         hips_tail = bone["head"] + direction * max(bone_len * 0.5, 0.05)
         hips_edit_bone = _new_edit_bone(
             edit_bones,
-            f"{CONTROL_PREFIX}Hips",
+            "Hips_Control",
             bone["head"],
             hips_tail,
             bone["roll"],
@@ -519,7 +536,7 @@ def _build_spine_system(
         last_bone = bone_data[chain[-1]]
         chest_edit_bone = _new_edit_bone(
             edit_bones,
-            f"{CONTROL_PREFIX}Chest",
+            "Chest_Control",
             last_bone["head"],
             last_bone["tail"],
             last_bone["roll"],
@@ -545,7 +562,7 @@ def _build_arm_system(
         bone = bone_data[system["shoulder"]]
         shoulder_edit_bone = _new_edit_bone(
             edit_bones,
-            f"{CONTROL_PREFIX}Shoulder.{side}",
+            f"Shoulder_Control.{side}",
             bone["head"],
             bone["tail"],
             bone["roll"],
@@ -558,7 +575,7 @@ def _build_arm_system(
     upper_arm_bone = bone_data[system["upper_arm"]]
     upper_arm_edit_bone = _new_edit_bone(
         edit_bones,
-        f"{CONTROL_PREFIX}UpperArm.{side}",
+        f"UpperArm_Control.{side}",
         upper_arm_bone["head"],
         upper_arm_bone["tail"],
         upper_arm_bone["roll"],
@@ -570,7 +587,7 @@ def _build_arm_system(
     forearm_bone = bone_data[system["forearm"]]
     forearm_edit_bone = _new_edit_bone(
         edit_bones,
-        f"{CONTROL_PREFIX}Forearm.{side}",
+        f"Forearm_Control.{side}",
         forearm_bone["head"],
         forearm_bone["tail"],
         forearm_bone["roll"],
@@ -582,7 +599,7 @@ def _build_arm_system(
     hand_bone = bone_data[system["hand"]]
     hand_edit_bone = _new_edit_bone(
         edit_bones,
-        f"{CONTROL_PREFIX}Hand.{side}",
+        f"Hand_Control.{side}",
         hand_bone["head"],
         hand_bone["tail"],
         hand_bone["roll"],
@@ -604,7 +621,7 @@ def _build_leg_system(
     The reverse foot pivot chain ends at IK_Target which is the actual leg IK target.
     """
     side = system["side"]
-    root_edit_bone = edit_bones.get(f"{CONTROL_PREFIX}World")
+    root_edit_bone = edit_bones.get("World_Control")
     upper_leg_bone = bone_data[system["upper_leg"]]
     lower_leg_bone = bone_data[system["lower_leg"]]
     foot_bone = bone_data[system["foot"]]
@@ -624,7 +641,7 @@ def _build_leg_system(
     foot_horiz_tail = foot_bone["head"] - foot_dir_horiz * foot_len
     leg_target_edit_bone = _new_edit_bone(
         edit_bones,
-        f"{CONTROL_PREFIX}Leg_Target.{side}",
+        f"Leg_Target_Control.{side}",
         foot_bone["head"],
         foot_horiz_tail,
         0.0,
@@ -632,7 +649,7 @@ def _build_leg_system(
     )
     ball_edit_bone = _new_edit_bone(
         edit_bones,
-        f"{CONTROL_PREFIX}Ball.{side}",
+        f"Ball_Control.{side}",
         ball_pos,
         ball_pos + pivot_up,
         0.0,
@@ -640,7 +657,7 @@ def _build_leg_system(
     )
     _new_edit_bone(
         edit_bones,
-        f"{CONTROL_PREFIX}IK_Target.{side}",
+        f"IK_Target_Control.{side}",
         foot_bone["head"],
         foot_bone["tail"],
         foot_bone["roll"],
@@ -650,7 +667,7 @@ def _build_leg_system(
     if has_toe:
         _new_edit_bone(
             edit_bones,
-            f"{CONTROL_PREFIX}Toe.{side}",
+            f"Toe_Control.{side}",
             toe_bone["head"],
             toe_bone["tail"],
             toe_bone["roll"],
@@ -663,7 +680,7 @@ def _build_leg_system(
     )
     _new_edit_bone(
         edit_bones,
-        f"{CONTROL_PREFIX}Leg_Pole.{side}",
+        f"Leg_Pole_Control.{side}",
         pole,
         pole + mathutils.Vector((0.0, 0.05, 0.0)),
         0.0,
@@ -683,7 +700,7 @@ def _build_head_system(
         bone = bone_data[system["neck"]]
         neck_edit_bone = _new_edit_bone(
             edit_bones,
-            f"{CONTROL_PREFIX}Neck",
+            "Neck_Control",
             bone["head"],
             bone["tail"],
             bone["roll"],
@@ -694,7 +711,7 @@ def _build_head_system(
         bone = bone_data[system["head"]]
         _new_edit_bone(
             edit_bones,
-            f"{CONTROL_PREFIX}Head",
+            "Head_Control",
             bone["head"],
             bone["tail"],
             bone["roll"],
@@ -717,7 +734,7 @@ def _build_finger_system(
         bone = bone_data[bone_name]
         control_edit_bone = _new_edit_bone(
             edit_bones,
-            CONTROL_PREFIX + _finger_ctrl_name(system, i),
+            _finger_ctrl_name(system, i),
             bone["head"],
             bone["tail"],
             bone["roll"],
@@ -727,12 +744,16 @@ def _build_finger_system(
         prev_edit_bone, prev_bone = control_edit_bone, bone
 
 
-def build_control_bones(armature_data: bpy.types.Armature, systems: list[SystemDict], bone_data: BoneDataDict) -> None:
+def build_control_bones(
+    armature_data: bpy.types.Armature,
+    systems: list[SystemDict],
+    bone_data: BoneDataDict,
+) -> None:
     """Build all control bones on the armature from the classified systems."""
     edit_bones = armature_data.edit_bones
     root_edit_bone = _new_edit_bone(
         edit_bones,
-        f"{CONTROL_PREFIX}World",
+        "World_Control",
         mathutils.Vector((0.0, 0.0, 0.0)),
         mathutils.Vector((0.0, 0.1, 0.0)),
         0.0,
@@ -773,91 +794,112 @@ def build_control_bones(armature_data: bpy.types.Armature, systems: list[SystemD
             _build_finger_system(edit_bones, system, bone_data, parent_edit_bone)
 
 
-def _setup_spine_pose(skeleton: bpy.types.Object, system: SystemDict, shapes: dict[str, bpy.types.Object | None]) -> None:
+def _setup_spine_pose(
+    skeleton: bpy.types.Object,
+    system: SystemDict,
+    shapes: dict[str, bpy.types.Object | None],
+) -> None:
     """Pelvis, hips, and chest as purple circles."""
     pose_bones = skeleton.pose.bones
     pelvis_hips_shape = shapes.get("pelvis_hips") or shapes["circle"]
-    pelvis_name = f"{CONTROL_PREFIX}Pelvis"
+    pelvis_name = "Pelvis_Control"
     if pelvis_name in pose_bones:
         _assign_shape(pose_bones[pelvis_name], pelvis_hips_shape, True, (2.0, 2.0, 2.0))
         _bone_color(pose_bones[pelvis_name], dracula.PURPLE)
-    hips_name = f"{CONTROL_PREFIX}Hips"
+    hips_name = "Hips_Control"
     if hips_name in pose_bones:
         _assign_shape(pose_bones[hips_name], pelvis_hips_shape, True, 3.5)
         _bone_color(pose_bones[hips_name], dracula.PURPLE)
-    chest_name = f"{CONTROL_PREFIX}Chest"
+    chest_name = "Chest_Control"
     if chest_name in pose_bones:
         _assign_shape(pose_bones[chest_name], shapes["circle"], True, 1.6)
         _bone_color(pose_bones[chest_name], dracula.PURPLE)
 
 
-def _setup_arm_pose(skeleton: bpy.types.Object, system: SystemDict, shapes: dict[str, bpy.types.Object | None]) -> None:
+def _setup_arm_pose(
+    skeleton: bpy.types.Object,
+    system: SystemDict,
+    shapes: dict[str, bpy.types.Object | None],
+) -> None:
     """Arm FK bones colored by side: left=yellow, right=green."""
     pose_bones = skeleton.pose.bones
     side = system["side"]
     color = _side_color(side)
-    shoulder_name = f"{CONTROL_PREFIX}Shoulder.{side}"
+    shoulder_name = f"Shoulder_Control.{side}"
     if shoulder_name in pose_bones:
         _assign_shape(pose_bones[shoulder_name], shapes["circle"], True, 1.2)
         _bone_color(pose_bones[shoulder_name], color)
-    for name in (f"{CONTROL_PREFIX}UpperArm.{side}", f"{CONTROL_PREFIX}Hand.{side}"):
+    for name in (
+        f"UpperArm_Control.{side}",
+        f"Hand_Control.{side}",
+    ):
         if name in pose_bones:
             _assign_shape(pose_bones[name], shapes["circle"], True, 0.4)
             _bone_color(pose_bones[name], color)
-    forearm_name = f"{CONTROL_PREFIX}Forearm.{side}"
+    forearm_name = f"Forearm_Control.{side}"
     if forearm_name in pose_bones:
         _assign_shape(pose_bones[forearm_name], shapes["circle"], True, 0.3)
         _bone_color(pose_bones[forearm_name], color)
 
 
-def _setup_leg_pose(skeleton: bpy.types.Object, system: SystemDict, shapes: dict[str, bpy.types.Object | None]) -> None:
+def _setup_leg_pose(
+    skeleton: bpy.types.Object,
+    system: SystemDict,
+    shapes: dict[str, bpy.types.Object | None],
+) -> None:
     """Reverse foot pivot chain, IK leg constraint, knee swivel. Mechanism bones hidden."""
     pose_bones = skeleton.pose.bones
     side = system["side"]
     color = _side_color(side)
 
-    leg_target_name = f"{CONTROL_PREFIX}Leg_Target.{side}"
+    leg_target_name = f"Leg_Target_Control.{side}"
     if leg_target_name in pose_bones:
         _assign_shape(pose_bones[leg_target_name], shapes["sphere"], False, 0.1)
         _bone_color(pose_bones[leg_target_name], color)
-    ball_name = f"{CONTROL_PREFIX}Ball.{side}"
+    ball_name = f"Ball_Control.{side}"
     if ball_name in pose_bones:
         _assign_shape(pose_bones[ball_name], shapes["diamond"], False, 0.03)
-        pose_bones[ball_name].custom_shape_translation = (0.0, 0.0, -7.5)
+        pose_bones[ball_name].custom_shape_translation = (0.0, 0.1, 0.0)
         _bone_color(pose_bones[ball_name], color)
-    toe_name = f"{CONTROL_PREFIX}Toe.{side}"
+    toe_name = f"Toe_Control.{side}"
     if toe_name in pose_bones:
         _assign_shape(pose_bones[toe_name], shapes["sphere"], False, 0.06)
         _bone_color(pose_bones[toe_name], color)
-    leg_pole_name = f"{CONTROL_PREFIX}Leg_Pole.{side}"
+    leg_pole_name = f"Leg_Pole_Control.{side}"
     if leg_pole_name in pose_bones:
         _assign_shape(pose_bones[leg_pole_name], shapes["sphere"], False, 0.04)
         _bone_color(pose_bones[leg_pole_name], color)
 
-    ik_target_name = f"{CONTROL_PREFIX}IK_Target.{side}"
+    ik_target_name = f"IK_Target_Control.{side}"
     if ik_target_name in pose_bones:
         pose_bones[ik_target_name].bone.hide = True
 
 
-def _setup_head_pose(skeleton: bpy.types.Object, shapes: dict[str, bpy.types.Object | None]) -> None:
+def _setup_head_pose(
+    skeleton: bpy.types.Object, shapes: dict[str, bpy.types.Object | None]
+) -> None:
     """Neck and head as purple circles (central controls), head slightly larger."""
     pose_bones = skeleton.pose.bones
-    neck_name = f"{CONTROL_PREFIX}Neck"
+    neck_name = "Neck_Control"
     if neck_name in pose_bones:
         _assign_shape(pose_bones[neck_name], shapes["circle"], True, 1.15)
         _bone_color(pose_bones[neck_name], dracula.PURPLE)
-    head_name = f"{CONTROL_PREFIX}Head"
+    head_name = "Head_Control"
     if head_name in pose_bones:
         _assign_shape(pose_bones[head_name], shapes["circle"], True, (0.6, 0.8, 0.8))
         _bone_color(pose_bones[head_name], dracula.PURPLE)
 
 
-def _setup_finger_pose(skeleton: bpy.types.Object, system: SystemDict, shapes: dict[str, bpy.types.Object | None]) -> None:
+def _setup_finger_pose(
+    skeleton: bpy.types.Object,
+    system: SystemDict,
+    shapes: dict[str, bpy.types.Object | None],
+) -> None:
     """Finger FK bones colored by side: left=yellow, right=green."""
     pose_bones = skeleton.pose.bones
     color = _side_color(system["side"])
     for i in range(len(system.get("chain") or [])):
-        control_name = CONTROL_PREFIX + _finger_ctrl_name(system, i)
+        control_name = _finger_ctrl_name(system, i)
         if control_name in pose_bones:
             _assign_shape(
                 pose_bones[control_name], shapes["circle"], True, 0.5 if i == 0 else 0.3
@@ -865,11 +907,15 @@ def _setup_finger_pose(skeleton: bpy.types.Object, system: SystemDict, shapes: d
             _bone_color(pose_bones[control_name], color)
 
 
-def setup_control_rig_pose(skeleton: bpy.types.Object, systems: list[SystemDict], shapes: dict[str, bpy.types.Object | None]) -> None:
+def setup_control_rig_pose(
+    skeleton: bpy.types.Object,
+    systems: list[SystemDict],
+    shapes: dict[str, bpy.types.Object | None],
+) -> None:
     """Apply custom shapes, colors, and constraints to all control bones."""
     skeleton.data.pose_position = "POSE"
     pose_bones = skeleton.pose.bones
-    world_name = f"{CONTROL_PREFIX}World"
+    world_name = "World_Control"
     if world_name in pose_bones:
         _assign_shape(
             pose_bones[world_name],
@@ -919,7 +965,7 @@ def setup_spine_splineik(
     start_pos = matrix_world @ bone_data[chain[0]]["head"]
     end_pos = matrix_world @ bone_data[chain[-1]]["tail"]
 
-    curve_name = f"{CONTROL_PREFIX}Spine_Curve"
+    curve_name = "Spine_Curve"
     old = bpy.data.objects.get(curve_name)
     if old:
         bpy.data.objects.remove(old, do_unlink=True)
@@ -956,11 +1002,11 @@ def setup_spine_splineik(
 
     hook_hips = curve_obj.modifiers.new("Hook_Hips", "HOOK")
     hook_hips.object = skeleton
-    hook_hips.subtarget = f"{CONTROL_PREFIX}Hips"
+    hook_hips.subtarget = "Hips_Control"
 
     hook_chest = curve_obj.modifiers.new("Hook_Chest", "HOOK")
     hook_chest.object = skeleton
-    hook_chest.subtarget = f"{CONTROL_PREFIX}Chest"
+    hook_chest.subtarget = "Chest_Control"
 
     bpy.ops.object.mode_set(mode="OBJECT")
     context.view_layer.objects.active = curve_obj
@@ -986,22 +1032,25 @@ def setup_spine_splineik(
     bpy.ops.object.mode_set(mode="POSE")
 
 
-def _add_copy_transforms(skeleton: bpy.types.Object, deform_bone: str, control_bone: str) -> str:
+def _add_copy_transforms(
+    skeleton: bpy.types.Object, deform_bone: str, control_bone: str
+) -> str:
     pose_bone = skeleton.pose.bones.get(deform_bone)
     if pose_bone is None:
         return f"SKIP {deform_bone}: not found on skeleton"
-    control_bone_name = CONTROL_PREFIX + control_bone
-    if control_bone_name not in skeleton.pose.bones:
-        return f"SKIP {deform_bone}: control bone '{control_bone_name}' not found"
+    if control_bone not in skeleton.pose.bones:
+        return f"SKIP {deform_bone}: control bone '{control_bone}' not found"
     constraint = pose_bone.constraints.new("COPY_TRANSFORMS")
     constraint.name = "CR"
     constraint.target = skeleton
-    constraint.subtarget = control_bone_name
+    constraint.subtarget = control_bone
     constraint.target_space, constraint.owner_space = "WORLD", "WORLD"
-    return f"OK {deform_bone} → {control_bone_name}"
+    return f"OK {deform_bone} → {control_bone}"
 
 
-def wire_deform_constraints(skeleton: bpy.types.Object, systems: list[SystemDict]) -> list[str]:
+def wire_deform_constraints(
+    skeleton: bpy.types.Object, systems: list[SystemDict]
+) -> list[str]:
     """Add Copy Transforms constraints on the skeleton wired to each control bone."""
     skeleton.data.pose_position = "POSE"
     log = []
@@ -1009,10 +1058,12 @@ def wire_deform_constraints(skeleton: bpy.types.Object, systems: list[SystemDict
         system_type = system["type"]
         if system_type == "spine":
             if system.get("pelvis"):
-                log.append(_add_copy_transforms(skeleton, system["pelvis"], "Hips"))
+                log.append(
+                    _add_copy_transforms(skeleton, system["pelvis"], "Hips_Control")
+                )
             vertebrae = system.get("vertebrae") or []
             if vertebrae:
-                curve_name = f"{CONTROL_PREFIX}Spine_Curve"
+                curve_name = "Spine_Curve"
                 curve_obj = bpy.data.objects.get(curve_name)
                 last_pose_bone = skeleton.pose.bones.get(vertebrae[-1])
                 if curve_obj and last_pose_bone:
@@ -1035,13 +1086,13 @@ def wire_deform_constraints(skeleton: bpy.types.Object, systems: list[SystemDict
             if system.get("shoulder"):
                 log.append(
                     _add_copy_transforms(
-                        skeleton, system["shoulder"], f"Shoulder.{side}"
+                        skeleton, system["shoulder"], f"Shoulder_Control.{side}"
                     )
                 )
             for deform_key, control_bone in (
-                ("upper_arm", f"UpperArm.{side}"),
-                ("forearm", f"Forearm.{side}"),
-                ("hand", f"Hand.{side}"),
+                ("upper_arm", f"UpperArm_Control.{side}"),
+                ("forearm", f"Forearm_Control.{side}"),
+                ("hand", f"Hand_Control.{side}"),
             ):
                 if system.get(deform_key):
                     log.append(
@@ -1055,18 +1106,18 @@ def wire_deform_constraints(skeleton: bpy.types.Object, systems: list[SystemDict
                 constraint = lower_leg_pose_bone.constraints.new("IK")
                 constraint.name = "CR"
                 constraint.target = skeleton
-                constraint.subtarget = f"{CONTROL_PREFIX}IK_Target.{side}"
+                constraint.subtarget = f"IK_Target_Control.{side}"
                 constraint.pole_target = skeleton
-                constraint.pole_subtarget = f"{CONTROL_PREFIX}Leg_Pole.{side}"
+                constraint.pole_subtarget = f"Leg_Pole_Control.{side}"
                 constraint.chain_count = len(ik_chain)
                 constraint.use_stretch = False
                 constraint.pole_angle = -math.pi / 2
                 log.append(
-                    f"OK IK on {system['lower_leg']} (chain={len(ik_chain)}) → {CONTROL_PREFIX}IK_Target.{side}"
+                    f"OK IK on {system['lower_leg']} (chain={len(ik_chain)}) → IK_Target_Control.{side}"
                 )
             for deform_key, control_bone in (
-                ("foot", f"IK_Target.{side}"),
-                ("toe", f"Toe.{side}"),
+                ("foot", f"IK_Target_Control.{side}"),
+                ("toe", f"Toe_Control.{side}"),
             ):
                 if system.get(deform_key):
                     log.append(
@@ -1074,8 +1125,10 @@ def wire_deform_constraints(skeleton: bpy.types.Object, systems: list[SystemDict
                     )
         elif system_type == "head":
             if system.get("neck"):
-                log.append(_add_copy_transforms(skeleton, system["neck"], "Neck"))
-            log.append(_add_copy_transforms(skeleton, system["head"], "Head"))
+                log.append(
+                    _add_copy_transforms(skeleton, system["neck"], "Neck_Control")
+                )
+            log.append(_add_copy_transforms(skeleton, system["head"], "Head_Control"))
         elif system_type == "finger":
             for i, bone_name in enumerate(system.get("chain") or []):
                 log.append(
@@ -1087,14 +1140,12 @@ def wire_deform_constraints(skeleton: bpy.types.Object, systems: list[SystemDict
 
 
 def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
-    """Remove all CR_ control bones and any constraints targeting them from the skeleton.
+    """Remove all control bones (identified by the _Control suffix) and any constraints targeting them.
 
     Should be called in POSE mode. Internally switches to EDIT mode to delete bones,
     then returns to OBJECT mode.
     """
-    control_bone_names = {
-        b.name for b in skeleton.data.bones if b.name.startswith(CONTROL_PREFIX)
-    }
+    control_bone_names = {b.name for b in skeleton.data.bones if "_Control" in b.name}
     if not control_bone_names:
         return
     for pose_bone in skeleton.pose.bones:
