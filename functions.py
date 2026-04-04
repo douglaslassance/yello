@@ -141,6 +141,18 @@ def select_objects(objects):
         bpy.context.view_layer.objects.active = objects[0]
 
 
+def get_children(obj, recursive=False):
+    """Return the children of an object.
+
+    When recursive is True, includes all descendants in depth-first order.
+    """
+    children = list(obj.children)
+    if recursive:
+        for child in obj.children:
+            children.extend(get_children(child, recursive=True))
+    return children
+
+
 def duplicate_object(obj):
     with contexts.SelectionContext():
         select_objects([obj])
