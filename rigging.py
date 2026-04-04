@@ -37,7 +37,9 @@ def classify_bones(bone_names):
         if systems:
             summary = []
             for system in systems:
-                label = f"{system['type']}.{system.get('side', system.get('name', '-'))}"
+                label = (
+                    f"{system['type']}.{system.get('side', system.get('name', '-'))}"
+                )
                 if system["type"] == "leg":
                     label += f"(toe={'yes' if system.get('toe') else 'NO'})"
                 summary.append(label)
@@ -63,7 +65,7 @@ def _parse_systems(data, bone_names):
         return [r for r in (resolve(n) for n in lst if isinstance(n, str)) if r]
 
     systems = []
-    for entry in (data.get("systems") or []):
+    for entry in data.get("systems") or []:
         if not isinstance(entry, dict):
             continue
         system_type = entry.get("type")
@@ -72,11 +74,13 @@ def _parse_systems(data, bone_names):
             vertebrae = resolve_chain(entry.get("vertebrae"))
             pelvis = resolve(entry.get("pelvis"))
             if vertebrae or pelvis:
-                systems.append({
-                    "type": "spine",
-                    "pelvis": pelvis,
-                    "vertebrae": vertebrae,
-                })
+                systems.append(
+                    {
+                        "type": "spine",
+                        "pelvis": pelvis,
+                        "vertebrae": vertebrae,
+                    }
+                )
 
         elif system_type == "arm":
             upper_arm = resolve(entry.get("upper_arm"))
@@ -84,15 +88,17 @@ def _parse_systems(data, bone_names):
             hand = resolve(entry.get("hand"))
             if not all([upper_arm, forearm, hand]):
                 continue
-            systems.append({
-                "type": "arm",
-                "side": str(entry.get("side") or "L"),
-                "parent": entry.get("parent"),
-                "shoulder": resolve(entry.get("shoulder")),
-                "upper_arm": upper_arm,
-                "forearm": forearm,
-                "hand": hand,
-            })
+            systems.append(
+                {
+                    "type": "arm",
+                    "side": str(entry.get("side") or "L"),
+                    "parent": entry.get("parent"),
+                    "shoulder": resolve(entry.get("shoulder")),
+                    "upper_arm": upper_arm,
+                    "forearm": forearm,
+                    "hand": hand,
+                }
+            )
 
         elif system_type == "leg":
             upper_leg = resolve(entry.get("upper_leg"))
@@ -100,39 +106,45 @@ def _parse_systems(data, bone_names):
             foot = resolve(entry.get("foot"))
             if not all([upper_leg, lower_leg, foot]):
                 continue
-            systems.append({
-                "type": "leg",
-                "side": str(entry.get("side") or "L"),
-                "parent": entry.get("parent"),
-                "upper_leg": upper_leg,
-                "lower_leg": lower_leg,
-                "foot": foot,
-                "toe": resolve(entry.get("toe")),
-            })
+            systems.append(
+                {
+                    "type": "leg",
+                    "side": str(entry.get("side") or "L"),
+                    "parent": entry.get("parent"),
+                    "upper_leg": upper_leg,
+                    "lower_leg": lower_leg,
+                    "foot": foot,
+                    "toe": resolve(entry.get("toe")),
+                }
+            )
 
         elif system_type == "head":
             head = resolve(entry.get("head"))
             if not head:
                 continue
-            systems.append({
-                "type": "head",
-                "parent": entry.get("parent"),
-                "neck": resolve(entry.get("neck")),
-                "head": head,
-            })
+            systems.append(
+                {
+                    "type": "head",
+                    "parent": entry.get("parent"),
+                    "neck": resolve(entry.get("neck")),
+                    "head": head,
+                }
+            )
 
         elif system_type == "finger":
             chain = resolve_chain(entry.get("chain"))
             name = entry.get("name")
             if not chain or not name:
                 continue
-            systems.append({
-                "type": "finger",
-                "name": str(name).lower(),
-                "side": str(entry.get("side") or "L"),
-                "parent": entry.get("parent"),
-                "chain": chain,
-            })
+            systems.append(
+                {
+                    "type": "finger",
+                    "name": str(name).lower(),
+                    "side": str(entry.get("side") or "L"),
+                    "parent": entry.get("parent"),
+                    "chain": chain,
+                }
+            )
 
     return systems or None
 
@@ -178,7 +190,7 @@ def get_or_create_shape(name, create_fn):
     return create_fn(name)
 
 
-def get_or_load_blend_shape(name):
+def get_or_load_shape(name):
     """Return or import a named mesh object from the bundled shapes.blend file.
 
     The caller is responsible for parenting the shape to the control rig armature.
@@ -227,7 +239,11 @@ def _wire_shape(name, strokes):
 def create_circle_shape(name):
     segment_count = 16
     points = [
-        (math.cos(2 * math.pi * i / segment_count), 0.0, math.sin(2 * math.pi * i / segment_count))
+        (
+            math.cos(2 * math.pi * i / segment_count),
+            0.0,
+            math.sin(2 * math.pi * i / segment_count),
+        )
         for i in range(segment_count)
     ]
     return _wire_shape(name, [(points, True)])
@@ -236,46 +252,104 @@ def create_circle_shape(name):
 def create_box_shape(name):
     half_size = 0.5
     coordinates = [
-        (-half_size, -half_size, -half_size), (half_size, -half_size, -half_size),
-        (half_size, half_size, -half_size), (-half_size, half_size, -half_size),
-        (-half_size, -half_size, half_size), (half_size, -half_size, half_size),
-        (half_size, half_size, half_size), (-half_size, half_size, half_size),
+        (-half_size, -half_size, -half_size),
+        (half_size, -half_size, -half_size),
+        (half_size, half_size, -half_size),
+        (-half_size, half_size, -half_size),
+        (-half_size, -half_size, half_size),
+        (half_size, -half_size, half_size),
+        (half_size, half_size, half_size),
+        (-half_size, half_size, half_size),
     ]
     edges = [
-        (0, 1), (1, 2), (2, 3), (3, 0),
-        (4, 5), (5, 6), (6, 7), (7, 4),
-        (0, 4), (1, 5), (2, 6), (3, 7),
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0),
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 4),
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7),
     ]
-    return _wire_shape(name, [([coordinates[a], coordinates[b]], False) for a, b in edges])
+    return _wire_shape(
+        name, [([coordinates[a], coordinates[b]], False) for a, b in edges]
+    )
 
 
 def create_diamond_shape(name):
     half_size = 0.5
     coordinates = [
-        (0, half_size, 0), (half_size, 0, 0), (0, -half_size, 0), (-half_size, 0, 0),
-        (0, 0, half_size), (0, 0, -half_size),
+        (0, half_size, 0),
+        (half_size, 0, 0),
+        (0, -half_size, 0),
+        (-half_size, 0, 0),
+        (0, 0, half_size),
+        (0, 0, -half_size),
     ]
-    edges = [(0, 1), (1, 2), (2, 3), (3, 0), (0, 4), (4, 2), (2, 5), (5, 0), (1, 4), (1, 5), (3, 4), (3, 5)]
-    return _wire_shape(name, [([coordinates[a], coordinates[b]], False) for a, b in edges])
+    edges = [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0),
+        (0, 4),
+        (4, 2),
+        (2, 5),
+        (5, 0),
+        (1, 4),
+        (1, 5),
+        (3, 4),
+        (3, 5),
+    ]
+    return _wire_shape(
+        name, [([coordinates[a], coordinates[b]], False) for a, b in edges]
+    )
 
 
 def create_sphere_shape(name):
     """Unit sphere approximated by three orthogonal circles."""
     segment_count = 16
-    xy = [(math.cos(2 * math.pi * i / segment_count), math.sin(2 * math.pi * i / segment_count), 0.0) for i in range(segment_count)]
-    xz = [(math.cos(2 * math.pi * i / segment_count), 0.0, math.sin(2 * math.pi * i / segment_count)) for i in range(segment_count)]
-    yz = [(0.0, math.cos(2 * math.pi * i / segment_count), math.sin(2 * math.pi * i / segment_count)) for i in range(segment_count)]
+    xy = [
+        (
+            math.cos(2 * math.pi * i / segment_count),
+            math.sin(2 * math.pi * i / segment_count),
+            0.0,
+        )
+        for i in range(segment_count)
+    ]
+    xz = [
+        (
+            math.cos(2 * math.pi * i / segment_count),
+            0.0,
+            math.sin(2 * math.pi * i / segment_count),
+        )
+        for i in range(segment_count)
+    ]
+    yz = [
+        (
+            0.0,
+            math.cos(2 * math.pi * i / segment_count),
+            math.sin(2 * math.pi * i / segment_count),
+        )
+        for i in range(segment_count)
+    ]
     return _wire_shape(name, [(xy, True), (xz, True), (yz, True)])
 
 
 def create_square_shape(name):
     """Unit square with crosshairs in the XZ plane."""
     points = [(-1, 0, 1), (1, 0, 1), (1, 0, -1), (-1, 0, -1)]
-    return _wire_shape(name, [
-        (points, True),
-        ([(-1, 0, 0), (1, 0, 0)], False),
-        ([(0, 0, -1), (0, 0, 1)], False),
-    ])
+    return _wire_shape(
+        name,
+        [
+            (points, True),
+            ([(-1, 0, 0), (1, 0, 0)], False),
+            ([(0, 0, -1), (0, 0, 1)], False),
+        ],
+    )
 
 
 def _calc_pole_angle(upper_pose_bone, lower_pose_bone, pole_pos):
@@ -286,7 +360,9 @@ def _calc_pole_angle(upper_pose_bone, lower_pose_bone, pole_pos):
     angle between them. Setting this on the IK constraint compensates for Blender's
     default pole orientation so the leg does not move from rest when the rig is built.
     """
-    chain = (lower_pose_bone.bone.tail_local - upper_pose_bone.bone.head_local).normalized()
+    chain = (
+        lower_pose_bone.bone.tail_local - upper_pose_bone.bone.head_local
+    ).normalized()
 
     to_pole = pole_pos - upper_pose_bone.bone.head_local
     to_pole -= to_pole.dot(chain) * chain
@@ -336,7 +412,12 @@ def _calc_pole_pos(upper_head, upper_tail, lower_tail):
 
 def _new_edit_bone(edit_bones, name, head, tail, roll, parent=None, connect=False):
     edit_bone = edit_bones.new(name)
-    edit_bone.head, edit_bone.tail, edit_bone.roll, edit_bone.use_deform = head, tail, roll, False
+    edit_bone.head, edit_bone.tail, edit_bone.roll, edit_bone.use_deform = (
+        head,
+        tail,
+        roll,
+        False,
+    )
     if parent:
         edit_bone.parent = parent
         edit_bone.use_connect = connect
@@ -397,10 +478,26 @@ def _build_spine_system(edit_bones, system, bone_data, root_edit_bone):
     if system.get("pelvis") and system["pelvis"] in bone_data:
         bone = bone_data[system["pelvis"]]
         bone_len = (bone["tail"] - bone["head"]).length
-        pelvis_edit_bone = _new_edit_bone(edit_bones, "Pelvis", bone["head"], bone["tail"], bone["roll"], root_edit_bone, False)
+        pelvis_edit_bone = _new_edit_bone(
+            edit_bones,
+            "Pelvis",
+            bone["head"],
+            bone["tail"],
+            bone["roll"],
+            root_edit_bone,
+            False,
+        )
         direction = (bone["tail"] - bone["head"]).normalized()
         hips_tail = bone["head"] + direction * max(bone_len * 0.5, 0.05)
-        hips_edit_bone = _new_edit_bone(edit_bones, "Hips", bone["head"], hips_tail, bone["roll"], pelvis_edit_bone, False)
+        hips_edit_bone = _new_edit_bone(
+            edit_bones,
+            "Hips",
+            bone["head"],
+            hips_tail,
+            bone["roll"],
+            pelvis_edit_bone,
+            False,
+        )
         deform_to_ctrl[system["pelvis"]] = pelvis_edit_bone
 
     chain = [n for n in (system.get("vertebrae") or []) if n in bone_data]
@@ -408,7 +505,15 @@ def _build_spine_system(edit_bones, system, bone_data, root_edit_bone):
 
     if chain:
         last_bone = bone_data[chain[-1]]
-        chest_edit_bone = _new_edit_bone(edit_bones, "Chest", last_bone["head"], last_bone["tail"], last_bone["roll"], pelvis_edit_bone or root_edit_bone, False)
+        chest_edit_bone = _new_edit_bone(
+            edit_bones,
+            "Chest",
+            last_bone["head"],
+            last_bone["tail"],
+            last_bone["roll"],
+            pelvis_edit_bone or root_edit_bone,
+            False,
+        )
 
     return hips_edit_bone, chest_edit_bone, deform_to_ctrl
 
@@ -420,22 +525,52 @@ def _build_arm_system(edit_bones, system, bone_data, parent_edit_bone, deform_to
 
     if system.get("shoulder") and system["shoulder"] in bone_data:
         bone = bone_data[system["shoulder"]]
-        shoulder_edit_bone = _new_edit_bone(edit_bones, f"Shoulder.{side}", bone["head"], bone["tail"], bone["roll"], parent_edit_bone, False)
+        shoulder_edit_bone = _new_edit_bone(
+            edit_bones,
+            f"Shoulder.{side}",
+            bone["head"],
+            bone["tail"],
+            bone["roll"],
+            parent_edit_bone,
+            False,
+        )
         deform_to_ctrl[system["shoulder"]] = shoulder_edit_bone
         arm_root = shoulder_edit_bone
 
     upper_arm_bone = bone_data[system["upper_arm"]]
-    upper_arm_edit_bone = _new_edit_bone(edit_bones, f"UpperArm.{side}", upper_arm_bone["head"], upper_arm_bone["tail"], upper_arm_bone["roll"], arm_root, False)
+    upper_arm_edit_bone = _new_edit_bone(
+        edit_bones,
+        f"UpperArm.{side}",
+        upper_arm_bone["head"],
+        upper_arm_bone["tail"],
+        upper_arm_bone["roll"],
+        arm_root,
+        False,
+    )
     deform_to_ctrl[system["upper_arm"]] = upper_arm_edit_bone
 
     forearm_bone = bone_data[system["forearm"]]
-    forearm_edit_bone = _new_edit_bone(edit_bones, f"Forearm.{side}", forearm_bone["head"], forearm_bone["tail"], forearm_bone["roll"], upper_arm_edit_bone,
-                                       _connected(forearm_bone["head"], upper_arm_bone["tail"]))
+    forearm_edit_bone = _new_edit_bone(
+        edit_bones,
+        f"Forearm.{side}",
+        forearm_bone["head"],
+        forearm_bone["tail"],
+        forearm_bone["roll"],
+        upper_arm_edit_bone,
+        _connected(forearm_bone["head"], upper_arm_bone["tail"]),
+    )
     deform_to_ctrl[system["forearm"]] = forearm_edit_bone
 
     hand_bone = bone_data[system["hand"]]
-    hand_edit_bone = _new_edit_bone(edit_bones, f"Hand.{side}", hand_bone["head"], hand_bone["tail"], hand_bone["roll"], forearm_edit_bone,
-                                    _connected(hand_bone["head"], forearm_bone["tail"]))
+    hand_edit_bone = _new_edit_bone(
+        edit_bones,
+        f"Hand.{side}",
+        hand_bone["head"],
+        hand_bone["tail"],
+        hand_bone["roll"],
+        forearm_edit_bone,
+        _connected(hand_bone["head"], forearm_bone["tail"]),
+    )
     deform_to_ctrl[system["hand"]] = hand_edit_bone
 
 
@@ -464,15 +599,53 @@ def _build_leg_system(edit_bones, system, bone_data, parent_edit_bone):
     else:
         foot_dir_horiz = mathutils.Vector((0.0, 1.0, 0.0))
     foot_horiz_tail = foot_bone["head"] - foot_dir_horiz * foot_len
-    leg_target_edit_bone = _new_edit_bone(edit_bones, f"Leg_Target.{side}", foot_bone["head"], foot_horiz_tail, 0.0, root_edit_bone)
-    ball_edit_bone = _new_edit_bone(edit_bones, f"Ball.{side}", ball_pos, ball_pos + pivot_up, 0.0, leg_target_edit_bone)
-    _new_edit_bone(edit_bones, f"IK_Target.{side}", foot_bone["head"], foot_bone["tail"], foot_bone["roll"], ball_edit_bone)
+    leg_target_edit_bone = _new_edit_bone(
+        edit_bones,
+        f"Leg_Target.{side}",
+        foot_bone["head"],
+        foot_horiz_tail,
+        0.0,
+        root_edit_bone,
+    )
+    ball_edit_bone = _new_edit_bone(
+        edit_bones,
+        f"Ball.{side}",
+        ball_pos,
+        ball_pos + pivot_up,
+        0.0,
+        leg_target_edit_bone,
+    )
+    _new_edit_bone(
+        edit_bones,
+        f"IK_Target.{side}",
+        foot_bone["head"],
+        foot_bone["tail"],
+        foot_bone["roll"],
+        ball_edit_bone,
+    )
 
     if has_toe:
-        _new_edit_bone(edit_bones, f"Toe.{side}", toe_bone["head"], toe_bone["tail"], toe_bone["roll"], leg_target_edit_bone, False)
+        _new_edit_bone(
+            edit_bones,
+            f"Toe.{side}",
+            toe_bone["head"],
+            toe_bone["tail"],
+            toe_bone["roll"],
+            leg_target_edit_bone,
+            False,
+        )
 
-    pole = _calc_pole_pos(upper_leg_bone["head"], upper_leg_bone["tail"], lower_leg_bone["tail"])
-    _new_edit_bone(edit_bones, f"Leg_Pole.{side}", pole, pole + mathutils.Vector((0.0, 0.05, 0.0)), 0.0, root_edit_bone)
+    pole = _calc_pole_pos(
+        upper_leg_bone["head"], upper_leg_bone["tail"], lower_leg_bone["tail"]
+    )
+    _new_edit_bone(
+        edit_bones,
+        f"Leg_Pole.{side}",
+        pole,
+        pole + mathutils.Vector((0.0, 0.05, 0.0)),
+        0.0,
+        root_edit_bone,
+    )
 
 
 def _build_head_system(edit_bones, system, bone_data, parent_edit_bone):
@@ -480,10 +653,26 @@ def _build_head_system(edit_bones, system, bone_data, parent_edit_bone):
     neck_edit_bone = None
     if system.get("neck") and system["neck"] in bone_data:
         bone = bone_data[system["neck"]]
-        neck_edit_bone = _new_edit_bone(edit_bones, "Neck", bone["head"], bone["tail"], bone["roll"], parent_edit_bone, False)
+        neck_edit_bone = _new_edit_bone(
+            edit_bones,
+            "Neck",
+            bone["head"],
+            bone["tail"],
+            bone["roll"],
+            parent_edit_bone,
+            False,
+        )
     if system["head"] in bone_data:
         bone = bone_data[system["head"]]
-        _new_edit_bone(edit_bones, "Head", bone["head"], bone["tail"], bone["roll"], neck_edit_bone or parent_edit_bone, False)
+        _new_edit_bone(
+            edit_bones,
+            "Head",
+            bone["head"],
+            bone["tail"],
+            bone["roll"],
+            neck_edit_bone or parent_edit_bone,
+            False,
+        )
 
 
 def _build_finger_system(edit_bones, system, bone_data, parent_edit_bone):
@@ -493,16 +682,28 @@ def _build_finger_system(edit_bones, system, bone_data, parent_edit_bone):
         if bone_name not in bone_data:
             continue
         bone = bone_data[bone_name]
-        control_edit_bone = _new_edit_bone(edit_bones, _finger_ctrl_name(system, i), bone["head"], bone["tail"], bone["roll"], prev_edit_bone,
-                                           prev_bone is not None and _connected(bone["head"], prev_bone["tail"]))
+        control_edit_bone = _new_edit_bone(
+            edit_bones,
+            _finger_ctrl_name(system, i),
+            bone["head"],
+            bone["tail"],
+            bone["roll"],
+            prev_edit_bone,
+            prev_bone is not None and _connected(bone["head"], prev_bone["tail"]),
+        )
         prev_edit_bone, prev_bone = control_edit_bone, bone
 
 
 def build_control_bones(control_rig_arm_data, systems, bone_data):
     """Build all control bones on the control rig armature from the classified systems."""
     edit_bones = control_rig_arm_data.edit_bones
-    root_edit_bone = _new_edit_bone(edit_bones, "World", mathutils.Vector((0.0, 0.0, 0.0)),
-                                    mathutils.Vector((0.0, 0.1, 0.0)), 0.0)
+    root_edit_bone = _new_edit_bone(
+        edit_bones,
+        "World",
+        mathutils.Vector((0.0, 0.0, 0.0)),
+        mathutils.Vector((0.0, 0.1, 0.0)),
+        0.0,
+    )
 
     hips_edit_bone = None
     chest_edit_bone = root_edit_bone
@@ -510,22 +711,32 @@ def build_control_bones(control_rig_arm_data, systems, bone_data):
 
     for system in systems:
         if system["type"] == "spine":
-            hips_edit_bone, chest_edit_bone, deform_to_ctrl = _build_spine_system(edit_bones, system, bone_data, root_edit_bone)
+            hips_edit_bone, chest_edit_bone, deform_to_ctrl = _build_spine_system(
+                edit_bones, system, bone_data, root_edit_bone
+            )
             break
 
     for system in systems:
         system_type = system["type"]
         if system_type == "arm":
-            _build_arm_system(edit_bones, system, bone_data, chest_edit_bone, deform_to_ctrl)
+            _build_arm_system(
+                edit_bones, system, bone_data, chest_edit_bone, deform_to_ctrl
+            )
         elif system_type == "leg":
-            parent_edit_bone = hips_edit_bone or deform_to_ctrl.get(system.get("parent")) or chest_edit_bone
+            parent_edit_bone = (
+                hips_edit_bone
+                or deform_to_ctrl.get(system.get("parent"))
+                or chest_edit_bone
+            )
             _build_leg_system(edit_bones, system, bone_data, parent_edit_bone)
         elif system_type == "head":
             _build_head_system(edit_bones, system, bone_data, chest_edit_bone)
 
     for system in systems:
         if system["type"] == "finger":
-            parent_edit_bone = deform_to_ctrl.get(system.get("parent")) or chest_edit_bone
+            parent_edit_bone = (
+                deform_to_ctrl.get(system.get("parent")) or chest_edit_bone
+            )
             _build_finger_system(edit_bones, system, bone_data, parent_edit_bone)
 
 
@@ -603,7 +814,9 @@ def _setup_finger_pose(control_rig, system, shapes):
     for i in range(len(system.get("chain") or [])):
         control_name = _finger_ctrl_name(system, i)
         if control_name in pose_bones:
-            _assign_shape(pose_bones[control_name], shapes["circle"], True, 0.5 if i == 0 else 0.3)
+            _assign_shape(
+                pose_bones[control_name], shapes["circle"], True, 0.5 if i == 0 else 0.3
+            )
             _bone_color(pose_bones[control_name], color)
 
 
@@ -612,7 +825,9 @@ def setup_control_rig_pose(control_rig, systems, shapes):
     control_rig.data.pose_position = "POSE"
     pose_bones = control_rig.pose.bones
     if "World" in pose_bones:
-        _assign_shape(pose_bones["World"], shapes.get("master") or shapes["square"], False, 50.0)
+        _assign_shape(
+            pose_bones["World"], shapes.get("master") or shapes["square"], False, 50.0
+        )
         _bone_color(pose_bones["World"], dracula.PURPLE)
     for system in systems:
         system_type = system["type"]
@@ -696,15 +911,15 @@ def setup_spine_splineik(control_rig, systems, context, bone_data):
     bezier_points = curve_obj.data.splines[0].bezier_points
     last_index = len(bezier_points) - 1
     for i, bezier_point in enumerate(bezier_points):
-        bezier_point.select_control_point = (i == 0)
-        bezier_point.select_left_handle = (i == 0)
-        bezier_point.select_right_handle = (i == 0)
+        bezier_point.select_control_point = i == 0
+        bezier_point.select_left_handle = i == 0
+        bezier_point.select_right_handle = i == 0
     bpy.ops.object.hook_assign(modifier="Hook_Hips")
 
     for i, bezier_point in enumerate(bezier_points):
-        bezier_point.select_control_point = (i == last_index)
-        bezier_point.select_left_handle = (i == last_index)
-        bezier_point.select_right_handle = (i == last_index)
+        bezier_point.select_control_point = i == last_index
+        bezier_point.select_left_handle = i == last_index
+        bezier_point.select_right_handle = i == last_index
     bpy.ops.object.hook_assign(modifier="Hook_Chest")
 
     bpy.ops.object.mode_set(mode="OBJECT")
@@ -734,7 +949,11 @@ def wire_deform_constraints(skeleton, control_rig, systems):
         system_type = system["type"]
         if system_type == "spine":
             if system.get("pelvis"):
-                log.append(_add_copy_transforms(skeleton, control_rig, system["pelvis"], "Hips"))
+                log.append(
+                    _add_copy_transforms(
+                        skeleton, control_rig, system["pelvis"], "Hips"
+                    )
+                )
             vertebrae = system.get("vertebrae") or []
             if vertebrae:
                 curve_name = control_rig.name + "_SpineCurve"
@@ -750,25 +969,37 @@ def wire_deform_constraints(skeleton, control_rig, systems):
                     constraint.use_curve_radius = False
                     constraint.y_scale_mode = "FIT_CURVE"
                     constraint.xz_scale_mode = "NONE"
-                    log.append(f"OK SplineIK on {vertebrae[-1]} (chain={len(vertebrae)})")
+                    log.append(
+                        f"OK SplineIK on {vertebrae[-1]} (chain={len(vertebrae)})"
+                    )
                 else:
                     log.append(f"SKIP SplineIK: curve or bone not found")
         elif system_type == "arm":
             side = system["side"]
             if system.get("shoulder"):
-                log.append(_add_copy_transforms(skeleton, control_rig, system["shoulder"], f"Shoulder.{side}"))
+                log.append(
+                    _add_copy_transforms(
+                        skeleton, control_rig, system["shoulder"], f"Shoulder.{side}"
+                    )
+                )
             for deform_key, control_bone in (
                 ("upper_arm", f"UpperArm.{side}"),
                 ("forearm", f"Forearm.{side}"),
                 ("hand", f"Hand.{side}"),
             ):
                 if system.get(deform_key):
-                    log.append(_add_copy_transforms(skeleton, control_rig, system[deform_key], control_bone))
+                    log.append(
+                        _add_copy_transforms(
+                            skeleton, control_rig, system[deform_key], control_bone
+                        )
+                    )
         elif system_type == "leg":
             side = system["side"]
             lower_leg_pose_bone = skeleton.pose.bones.get(system.get("lower_leg", ""))
             if lower_leg_pose_bone:
-                upper_leg_pose_bone = skeleton.pose.bones.get(system.get("upper_leg", ""))
+                upper_leg_pose_bone = skeleton.pose.bones.get(
+                    system.get("upper_leg", "")
+                )
                 pole_pose_bone = control_rig.pose.bones.get(f"Leg_Pole.{side}")
                 ik_chain = [k for k in ("upper_leg", "lower_leg") if system.get(k)]
                 constraint = lower_leg_pose_bone.constraints.new("IK")
@@ -780,20 +1011,34 @@ def wire_deform_constraints(skeleton, control_rig, systems):
                 constraint.chain_count = len(ik_chain)
                 constraint.use_stretch = False
                 constraint.pole_angle = -math.pi / 2
-                log.append(f"OK IK on {system['lower_leg']} (chain={len(ik_chain)}) → IK_Target.{side}")
+                log.append(
+                    f"OK IK on {system['lower_leg']} (chain={len(ik_chain)}) → IK_Target.{side}"
+                )
             for deform_key, control_bone in (
                 ("foot", f"IK_Target.{side}"),
                 ("toe", f"Toe.{side}"),
             ):
                 if system.get(deform_key):
-                    log.append(_add_copy_transforms(skeleton, control_rig, system[deform_key], control_bone))
+                    log.append(
+                        _add_copy_transforms(
+                            skeleton, control_rig, system[deform_key], control_bone
+                        )
+                    )
         elif system_type == "head":
             if system.get("neck"):
-                log.append(_add_copy_transforms(skeleton, control_rig, system["neck"], "Neck"))
-            log.append(_add_copy_transforms(skeleton, control_rig, system["head"], "Head"))
+                log.append(
+                    _add_copy_transforms(skeleton, control_rig, system["neck"], "Neck")
+                )
+            log.append(
+                _add_copy_transforms(skeleton, control_rig, system["head"], "Head")
+            )
         elif system_type == "finger":
             for i, bone_name in enumerate(system.get("chain") or []):
-                log.append(_add_copy_transforms(skeleton, control_rig, bone_name, _finger_ctrl_name(system, i)))
+                log.append(
+                    _add_copy_transforms(
+                        skeleton, control_rig, bone_name, _finger_ctrl_name(system, i)
+                    )
+                )
     return log
 
 

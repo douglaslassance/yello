@@ -344,13 +344,21 @@ class BuildControlRigOperator(bpy.types.Operator):
         bpy.ops.object.mode_set(mode="OBJECT")
 
         shapes = {
-            "circle": rigging.get_or_create_shape("Shape_Circle", rigging.create_circle_shape),
+            "circle": rigging.get_or_create_shape(
+                "Shape_Circle", rigging.create_circle_shape
+            ),
             "box": rigging.get_or_create_shape("Shape_Box", rigging.create_box_shape),
-            "diamond": rigging.get_or_create_shape("Shape_Diamond", rigging.create_diamond_shape),
-            "sphere": rigging.get_or_create_shape("Shape_Sphere", rigging.create_sphere_shape),
-            "square": rigging.get_or_create_shape("Shape_Square", rigging.create_square_shape),
-            "master": rigging.get_or_load_blend_shape("base_controller.034"),
-            "pelvis_hips": rigging.get_or_load_blend_shape("other_controller.003"),
+            "diamond": rigging.get_or_create_shape(
+                "Shape_Diamond", rigging.create_diamond_shape
+            ),
+            "sphere": rigging.get_or_create_shape(
+                "Shape_Sphere", rigging.create_sphere_shape
+            ),
+            "square": rigging.get_or_create_shape(
+                "Shape_Square", rigging.create_square_shape
+            ),
+            "master": rigging.get_or_load_shape("base_controller.034"),
+            "pelvis_hips": rigging.get_or_load_shape("other_controller.003"),
         }
 
         control_rig_name = skeleton.name + "_ControlRig"
@@ -403,7 +411,9 @@ class BuildControlRigOperator(bpy.types.Operator):
 class RemoveControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.remove_control_rig"
     bl_label = "Remove Control Rig"
-    bl_description = "Remove the control rig and all constraints from the skeleton armature."
+    bl_description = (
+        "Remove the control rig and all constraints from the skeleton armature."
+    )
 
     @classmethod
     def poll(cls, context):
@@ -418,7 +428,7 @@ class RemoveControlRigOperator(bpy.types.Operator):
             return None
         # If the selected object ends with _ControlRig, the skeleton is the name without it
         if obj.name.endswith("_ControlRig"):
-            skeleton_name = obj.name[:-len("_ControlRig")]
+            skeleton_name = obj.name[: -len("_ControlRig")]
             return bpy.data.objects.get(skeleton_name)
         return obj
 
