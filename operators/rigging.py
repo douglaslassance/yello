@@ -22,17 +22,10 @@ class AlignBoneRollsOperator(bpy.types.Operator):
         return False
 
     def execute(self, context):
-        bones = context.editable_bones
-        if not bones or len(bones) < 2:
-            self.report({"ERROR"}, "A minimum of 2 bones should be selected")
+        bones, error = functions.validate_bone_chain(context.editable_bones)
+        if error:
+            self.report({"ERROR"}, error)
             return {"FINISHED"}
-        bones.reverse()
-        for bone in bones[:-1]:
-            parent_index = bones.index(bone) + 1
-            if not bone.parent == bones[parent_index]:
-                self.report({"ERROR"}, "Selected bones need to be connected")
-                return {"FINISHED"}
-        bones.reverse()
         first_bone_vector = bones[0].tail - bones[0].head
         last_bone_vector = bones[-1].head - bones[-1].tail
         normal = first_bone_vector.cross(last_bone_vector).normalized()
@@ -71,17 +64,10 @@ class AlignBonesOperator(bpy.types.Operator):
         return False
 
     def execute(self, context):
-        bones = context.editable_bones
-        if not bones or len(bones) < 2:
-            self.report({"ERROR"}, "A minimum of 2 bones should be selected")
+        bones, error = functions.validate_bone_chain(context.editable_bones)
+        if error:
+            self.report({"ERROR"}, error)
             return {"FINISHED"}
-        bones.reverse()
-        for bone in bones[:-1]:
-            parent_index = bones.index(bone) + 1
-            if not bone.parent == bones[parent_index]:
-                self.report({"ERROR"}, "Selected bones need to be connected")
-                return {"FINISHED"}
-        bones.reverse()
         start = bones[0].head
         mid = bones[0].tail
         end = bones[-1].tail
@@ -137,23 +123,16 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
         return False
 
     def execute(self, context):
-        bones = context.editable_bones
-        if not bones or len(bones) < 2:
-            self.report({"ERROR"}, "A minimum of 2 bones should be selected")
+        bones, error = functions.validate_bone_chain(context.editable_bones)
+        if error:
+            self.report({"ERROR"}, error)
             return {"FINISHED"}
-        bones.reverse()
-        for bone in bones[:-1]:
-            parent_index = bones.index(bone) + 1
-            if not bone.parent == bones[parent_index]:
-                self.report({"ERROR"}, "Selected bones need to be connected")
-                return {"FINISHED"}
-        head = bones[-1].head
-        overarching_vector = bones[0].tail - head
+        head = bones[0].head
+        overarching_vector = bones[-1].tail - head
         length = overarching_vector.length
         normalized = overarching_vector.normalized()
         bone_count = len(bones)
         bone_number = 0
-        bones.reverse()
         for bone in bones[:-1]:
             bone_number += 1
             bone.tail = head + normalized * length / bone_count * bone_number
@@ -240,17 +219,10 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
         return False
 
     def execute(self, context):
-        bones = context.editable_bones
-        if not bones or len(bones) < 2:
-            self.report({"ERROR"}, "A minimum of 2 bones should be selected")
+        bones, error = functions.validate_bone_chain(context.editable_bones)
+        if error:
+            self.report({"ERROR"}, error)
             return {"FINISHED"}
-        bones.reverse()
-        for bone in bones[:-1]:
-            parent_index = bones.index(bone) + 1
-            if not bone.parent == bones[parent_index]:
-                self.report({"ERROR"}, "Selected bones need to be connected")
-                return {"FINISHED"}
-        bones.reverse()
         splits = bones[-1].name.split(".")
         edit_bones = context.object.data.edit_bones
         new_name = ".".join(splits[:-1] + ["Blend", splits[-1]])
