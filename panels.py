@@ -3,7 +3,7 @@ import bpy
 from bpy.types import Panel
 
 
-class YelloFileView3dPanel(Panel):
+class YELLO_PT_file(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_label = "File"
@@ -17,7 +17,7 @@ class YelloFileView3dPanel(Panel):
         col.operator("object.open_containing_folder", icon="FILE_FOLDER")
 
 
-class YelloRiggingView3dPanel(Panel):
+class YELLO_PT_rigging(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_label = "Rigging"
@@ -39,7 +39,7 @@ class YelloRiggingView3dPanel(Panel):
         col.operator("armature.remove_control_rig", icon="X")
 
 
-class YelloAnimationView3dPanel(Panel):
+class YELLO_PT_animation(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_label = "Animation"
@@ -56,7 +56,7 @@ class YelloAnimationView3dPanel(Panel):
         col.operator("armature.transfer_animation", icon="ANIM_DATA")
 
 
-class YelloShadingView3dPanel(Panel):
+class YELLO_PT_shading(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_label = "Shading"
@@ -71,7 +71,7 @@ class YelloShadingView3dPanel(Panel):
         col.operator("object.set_vertex_color", icon="VPAINT_HLT")
 
 
-class YelloModelingView3dPanel(Panel):
+class YELLO_PT_modeling(Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_label = "Modeling"
