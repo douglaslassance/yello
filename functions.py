@@ -11,6 +11,8 @@ from bmesh.types import BMesh, BMLayerItem
 
 from . import contexts
 
+logger = logging.getLogger(__name__)
+
 
 def create_collection(name: str = "Collection") -> bpy.types.Collection:
     if name not in bpy.data.collections:
@@ -52,9 +54,9 @@ def run_command(command: list[str]) -> int:
     )
     output, err = process.communicate()
     if output:
-        logging.warning(output)
+        logger.warning(output)
     if err:
-        logging.error(err)
+        logger.error(err)
     return process.returncode
 
 
@@ -62,7 +64,7 @@ def run_gitalong_command(command: list[str]) -> int | None:
     try:
         return run_command(["gitalong"] + command)
     except FileNotFoundError:
-        logging.warning("Gitalong not found.")
+        logger.warning("Gitalong not found.")
     return None
 
 
