@@ -131,7 +131,9 @@ class ExportActionsOperator(bpy.types.Operator):
 class ActionSelectionItem(bpy.types.PropertyGroup):
     """A single action entry in the transfer checklist."""
 
-    selected: bpy.props.BoolProperty(name="", default=True)  # pyright: ignore [reportInvalidTypeForm]
+    selected: bpy.props.BoolProperty(
+        name="", default=True
+    )  # pyright: ignore [reportInvalidTypeForm]
 
 
 class TransferAnimationOperator(bpy.types.Operator):
@@ -149,7 +151,9 @@ class TransferAnimationOperator(bpy.types.Operator):
         "Transfer actions to the selected armatures using Ollama-based bone matching."
     )
 
-    action_items: bpy.props.CollectionProperty(type=ActionSelectionItem)  # pyright: ignore [reportInvalidTypeForm]
+    action_items: bpy.props.CollectionProperty(
+        type=ActionSelectionItem
+    )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -206,7 +210,9 @@ class TransferAnimationOperator(bpy.types.Operator):
                 )
                 self.report({"INFO"}, f"Ollama ({action.name} -> {target.name}): {raw}")
                 if pairs is None:
-                    self.report({"WARNING"}, f"{target.name} / {action.name}: {message}")
+                    self.report(
+                        {"WARNING"}, f"{target.name} / {action.name}: {message}"
+                    )
                     continue
 
                 self.report({"INFO"}, f"{target.name} / {action.name}: {message}")
