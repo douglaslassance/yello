@@ -1,11 +1,14 @@
 import os
 import bpy
 import sys
+import logging
 import typing
 import inspect
 import pkgutil
 import importlib
 from pathlib import Path
+
+logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(levelname)s: %(message)s")
 
 __all__ = (
     "init",

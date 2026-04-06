@@ -7,7 +7,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 URL: str = "http://localhost:11434"
-MODEL: str = "mistral:latest"
+MODEL: str = "codestral:latest"
 TIMEOUT_PING: int = 3
 TIMEOUT_INFER: int = 60
 
