@@ -270,7 +270,7 @@ class BuildControlRigOperator(bpy.types.Operator):
     )
 
     apply_transform: bpy.props.BoolProperty(
-        name="Apply Transform",
+        name="Apply All Transforms",
         description="Apply transforms to the armature and its children before building.",
         default=True,
     )  # pyright: ignore [reportInvalidTypeForm]
@@ -330,9 +330,7 @@ class BuildControlRigOperator(bpy.types.Operator):
             "circle": rigging.get_or_create_shape(
                 "Circle_Shape", rigging.create_circle_shape
             ),
-            "box": rigging.get_or_create_shape(
-                "Box_Shape", rigging.create_box_shape
-            ),
+            "box": rigging.get_or_create_shape("Box_Shape", rigging.create_box_shape),
             "diamond": rigging.get_or_create_shape(
                 "Diamond_Shape", rigging.create_diamond_shape
             ),
@@ -366,8 +364,9 @@ class BuildControlRigOperator(bpy.types.Operator):
         )
         bpy.ops.object.mode_set(mode="OBJECT")
 
+        context.view_layer.objects.active = skeleton
         bpy.ops.object.mode_set(mode="POSE")
-        wire_log = rigging.wire_deform_constraints(skeleton, systems)
+        rigging.wire_deform_constraints(skeleton, systems)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         skeleton.show_in_front = False
@@ -377,9 +376,6 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         context.view_layer.objects.active = skeleton
         bpy.context.scene.frame_set(bpy.context.scene.frame_current)
-        for line in wire_log:
-            if line:
-                self.report({"INFO"}, line)
         self.report({"INFO"}, "Control rig built.")
         return {"FINISHED"}
 
@@ -387,9 +383,7 @@ class BuildControlRigOperator(bpy.types.Operator):
 class RemoveControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.remove_control_rig"
     bl_label = "Remove Control Rig"
-    bl_description = (
-        "Remove all control bones and their constraints from the armature."
-    )
+    bl_description = "Remove all control bones and their constraints from the armature."
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:

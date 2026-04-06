@@ -129,7 +129,9 @@ class SetMeshColorChannelOperator(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     @staticmethod
-    def _set_channel(color_data: object, layer: object, channel: str, value: float) -> None:
+    def _set_channel(
+        color_data: object, layer: object, channel: str, value: float
+    ) -> None:
         attribute = "xyzw"[{"Red": 0, "Green": 1, "Blue": 2, "Alpha": 3}[channel]]
         setattr(color_data[layer], attribute, value)
 
