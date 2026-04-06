@@ -31,12 +31,16 @@ def classify_bones(bone_names: list[str]) -> tuple[list[SystemDict] | None, str,
     or (None, error_message, raw).
     """
     bone_list = "\n".join(f"  - {n}" for n in sorted(bone_names))
-    prompt = _load_prompt("classify_bones.md").replace("{bone_list}", bone_list)
-    messages = [
-        {"role": "user", "content": prompt},
-    ]
+    system = _load_prompt("classify_bones_system.md")
+    user = _load_prompt("classify_bones_user.md").replace("{bone_list}", bone_list)
+    logger.info("classify_bones user prompt:\n%s", user)
     try:
-        raw = ollama.chat(messages)
+        raw = ollama.chat(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ]
+        )
         data = json.loads(raw or "{}")
         systems = _parse_systems(data, bone_names)
         if systems:
@@ -181,13 +185,20 @@ def match_bones(
     source_list = "\n".join(f"  - {name}" for name in sorted(effective_source))
     target_list = "\n".join(f"  - {name}" for name in sorted(effective_target))
 
-    prompt = (
-        _load_prompt("match_bones.md")
+    system = _load_prompt("match_bones_system.md")
+    user = (
+        _load_prompt("match_bones_user.md")
         .replace("{source_bone_list}", source_list)
         .replace("{target_bone_list}", target_list)
     )
+    logger.info("match_bones user prompt:\n%s", user)
     try:
-        raw = ollama.chat([{"role": "user", "content": prompt}])
+        raw = ollama.chat(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ]
+        )
         data = json.loads(raw or "{}")
         pairs = _parse_bone_pairs(data, effective_source, effective_target)
         if pairs:
@@ -225,6 +236,11 @@ def _parse_bone_pairs(
         target_resolved = target_lookup.get(target_raw.strip().lower())
         if source_resolved and target_resolved:
             pairs.append((source_resolved, target_resolved))
+        else:
+            if not source_resolved:
+                logger.warning("Ollama returned unknown source bone: %r", source_raw)
+            if not target_resolved:
+                logger.warning("Ollama returned unknown target bone: %r", target_raw)
 
     return pairs or None
 
