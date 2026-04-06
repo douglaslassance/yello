@@ -1,7 +1,10 @@
 import json
+import logging
 import urllib.error
 import urllib.request
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 URL: str = "http://localhost:11434"
 MODEL: str = "mistral:latest"
@@ -27,13 +30,15 @@ def chat(
 
     Raises urllib.error.HTTPError or OSError on failure.
     """
-    payload = json.dumps({
-        "model": model or MODEL,
-        "messages": messages,
-        "stream": False,
-        "format": format,
-        "options": {"temperature": temperature},
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": model or MODEL,
+            "messages": messages,
+            "stream": False,
+            "format": format,
+            "options": {"temperature": temperature},
+        }
+    ).encode()
     req = urllib.request.Request(
         f"{URL}/api/chat",
         data=payload,
@@ -41,4 +46,6 @@ def chat(
     )
     with urllib.request.urlopen(req, timeout=TIMEOUT_INFER) as r:
         result = json.loads(r.read())
-    return result.get("message", {}).get("content", "")
+    content = result.get("message", {}).get("content", "")
+    logger.info("Response: %s", content)
+    return content

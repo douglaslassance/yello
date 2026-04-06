@@ -52,6 +52,8 @@ class YelloAnimationView3dPanel(Panel):
         col.operator("object.export_animation", icon="ONIONSKIN_ON")
         col.operator("object.export_animated_mesh", icon="MOD_SOFT")
         col.operator("armature.export_actions", icon="RENDER_ANIMATION")
+        col.separator()
+        col.operator("armature.transfer_animation", icon="ANIM_DATA")
 
 
 class YelloShadingView3dPanel(Panel):

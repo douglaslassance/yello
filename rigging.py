@@ -1,11 +1,14 @@
 import bmesh
 import bpy
 import json
+import logging
 import math
 import mathutils
 import urllib.error
 from pathlib import Path
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 from . import dracula
 from . import ollama
@@ -151,6 +154,79 @@ def _parse_systems(
             )
 
     return systems or None
+
+
+CONTROL_SUFFIX: str = "_Control"
+CONTROL_RIG_CONSTRAINT_NAME: str = "Control Rig"
+
+
+def match_bones(
+    source_bone_names: list[str],
+    target_bone_names: list[str],
+) -> tuple[list[tuple[str, str]] | None, str, str]:
+    """Ask Ollama to match source bones to target bones by anatomical role.
+
+    For each armature, if control bones (containing '_Control') are present
+    only those are sent to Ollama. Otherwise all bones are sent.
+
+    Returns (pairs, message, raw) where pairs is a list of (source, target)
+    tuples, or (None, error_message, raw).
+    """
+    source_controls = [n for n in source_bone_names if CONTROL_SUFFIX in n]
+    effective_source = source_controls if source_controls else source_bone_names
+
+    target_controls = [n for n in target_bone_names if CONTROL_SUFFIX in n]
+    effective_target = target_controls if target_controls else target_bone_names
+
+    source_list = "\n".join(f"  - {name}" for name in sorted(effective_source))
+    target_list = "\n".join(f"  - {name}" for name in sorted(effective_target))
+
+    prompt = (
+        _load_prompt("match_bones.md")
+        .replace("{source_bone_list}", source_list)
+        .replace("{target_bone_list}", target_list)
+    )
+    try:
+        raw = ollama.chat([{"role": "user", "content": prompt}])
+        data = json.loads(raw or "{}")
+        pairs = _parse_bone_pairs(data, effective_source, effective_target)
+        if pairs:
+            return pairs, f"Matched {len(pairs)} bone pairs", raw
+        return (
+            None,
+            f"Could not parse bone pairs from Ollama response: {raw[:300]}",
+            raw,
+        )
+    except urllib.error.HTTPError as exception:
+        body = exception.read().decode(errors="replace")
+        return None, f"Ollama HTTP {exception.code}: {body[:200]}", ""
+    except Exception as exception:
+        return None, f"Ollama error: {exception}", ""
+
+
+def _parse_bone_pairs(
+    data: dict[str, Any],
+    source_bone_names: list[str],
+    target_bone_names: list[str],
+) -> list[tuple[str, str]] | None:
+    """Parse the pairs array from Ollama JSON, validating against actual bone names."""
+    source_lookup = {name.strip().lower(): name for name in source_bone_names}
+    target_lookup = {name.strip().lower(): name for name in target_bone_names}
+
+    pairs: list[tuple[str, str]] = []
+    for entry in data.get("pairs") or []:
+        if not isinstance(entry, dict):
+            continue
+        source_raw = entry.get("source")
+        target_raw = entry.get("target")
+        if not isinstance(source_raw, str) or not isinstance(target_raw, str):
+            continue
+        source_resolved = source_lookup.get(source_raw.strip().lower())
+        target_resolved = target_lookup.get(target_raw.strip().lower())
+        if source_resolved and target_resolved:
+            pairs.append((source_resolved, target_resolved))
+
+    return pairs or None
 
 
 def extract_bone_names(systems: list[SystemDict]) -> set[str]:
@@ -1001,30 +1077,17 @@ def setup_spine_splineik(
     hook_hips = curve_obj.modifiers.new("Hook_Hips", "HOOK")
     hook_hips.object = skeleton
     hook_hips.subtarget = "Hips_Control"
+    hook_hips.vertex_indices_set([0, 1, 2])
 
+    point_count = len(curve_obj.data.splines[0].bezier_points)
+    last_point_start = (point_count - 1) * 3
     hook_chest = curve_obj.modifiers.new("Hook_Chest", "HOOK")
     hook_chest.object = skeleton
     hook_chest.subtarget = "Chest_Control"
+    hook_chest.vertex_indices_set(
+        [last_point_start, last_point_start + 1, last_point_start + 2]
+    )
 
-    bpy.ops.object.mode_set(mode="OBJECT")
-    context.view_layer.objects.active = curve_obj
-    bpy.ops.object.mode_set(mode="EDIT")
-
-    bezier_points = curve_obj.data.splines[0].bezier_points
-    last_index = len(bezier_points) - 1
-    for i, bezier_point in enumerate(bezier_points):
-        bezier_point.select_control_point = i == 0
-        bezier_point.select_left_handle = i == 0
-        bezier_point.select_right_handle = i == 0
-    bpy.ops.object.hook_assign(modifier="Hook_Hips")
-
-    for i, bezier_point in enumerate(bezier_points):
-        bezier_point.select_control_point = i == last_index
-        bezier_point.select_left_handle = i == last_index
-        bezier_point.select_right_handle = i == last_index
-    bpy.ops.object.hook_assign(modifier="Hook_Chest")
-
-    bpy.ops.object.mode_set(mode="OBJECT")
     curve_obj.hide_viewport = True
     context.view_layer.objects.active = skeleton
     bpy.ops.object.mode_set(mode="POSE")
@@ -1032,41 +1095,36 @@ def setup_spine_splineik(
 
 def _add_copy_transforms(
     skeleton: bpy.types.Object, deform_bone: str, control_bone: str
-) -> str:
+) -> None:
     pose_bone = skeleton.pose.bones.get(deform_bone)
     if pose_bone is None:
-        return f"SKIP {deform_bone}: not found on skeleton"
+        return
     if control_bone not in skeleton.pose.bones:
-        return f"SKIP {deform_bone}: control bone '{control_bone}' not found"
+        return
     constraint = pose_bone.constraints.new("COPY_TRANSFORMS")
-    constraint.name = "CR"
+    constraint.name = CONTROL_RIG_CONSTRAINT_NAME
     constraint.target = skeleton
     constraint.subtarget = control_bone
     constraint.target_space, constraint.owner_space = "WORLD", "WORLD"
-    return f"OK {deform_bone} → {control_bone}"
 
 
 def wire_deform_constraints(
-    skeleton: bpy.types.Object, systems: list[SystemDict]
-) -> list[str]:
+    armature: bpy.types.Object, systems: list[SystemDict]
+) -> None:
     """Add Copy Transforms constraints on the skeleton wired to each control bone."""
-    skeleton.data.pose_position = "POSE"
-    log = []
+    armature.data.pose_position = "POSE"
     for system in systems:
         system_type = system["type"]
         if system_type == "spine":
             if system.get("pelvis"):
-                log.append(
-                    _add_copy_transforms(skeleton, system["pelvis"], "Hips_Control")
-                )
+                _add_copy_transforms(armature, system["pelvis"], "Hips_Control")
             vertebrae = system.get("vertebrae") or []
             if vertebrae:
-                curve_name = "Spine_Curve"
-                curve_obj = bpy.data.objects.get(curve_name)
-                last_pose_bone = skeleton.pose.bones.get(vertebrae[-1])
+                curve_obj = bpy.data.objects.get("Spine_Curve")
+                last_pose_bone = armature.pose.bones.get(vertebrae[-1])
                 if curve_obj and last_pose_bone:
                     constraint = last_pose_bone.constraints.new("SPLINE_IK")
-                    constraint.name = "CR"
+                    constraint.name = CONTROL_RIG_CONSTRAINT_NAME
                     constraint.target = curve_obj
                     constraint.chain_count = len(vertebrae)
                     constraint.use_chain_offset = False
@@ -1074,18 +1132,11 @@ def wire_deform_constraints(
                     constraint.use_curve_radius = False
                     constraint.y_scale_mode = "FIT_CURVE"
                     constraint.xz_scale_mode = "NONE"
-                    log.append(
-                        f"OK SplineIK on {vertebrae[-1]} (chain={len(vertebrae)})"
-                    )
-                else:
-                    log.append("SKIP SplineIK: curve or bone not found")
         elif system_type == "arm":
             side = system["side"]
             if system.get("shoulder"):
-                log.append(
-                    _add_copy_transforms(
-                        skeleton, system["shoulder"], f"Shoulder_Control.{side}"
-                    )
+                _add_copy_transforms(
+                    armature, system["shoulder"], f"Shoulder_Control.{side}"
                 )
             for deform_key, control_bone in (
                 ("upper_arm", f"UpperArm_Control.{side}"),
@@ -1093,48 +1144,37 @@ def wire_deform_constraints(
                 ("hand", f"Hand_Control.{side}"),
             ):
                 if system.get(deform_key):
-                    log.append(
-                        _add_copy_transforms(skeleton, system[deform_key], control_bone)
-                    )
+                    _add_copy_transforms(armature, system[deform_key], control_bone)
         elif system_type == "leg":
             side = system["side"]
-            lower_leg_pose_bone = skeleton.pose.bones.get(system.get("lower_leg", ""))
+            lower_leg_pose_bone = armature.pose.bones.get(system.get("lower_leg", ""))
             if lower_leg_pose_bone:
                 ik_chain = [k for k in ("upper_leg", "lower_leg") if system.get(k)]
                 constraint = lower_leg_pose_bone.constraints.new("IK")
-                constraint.name = "CR"
-                constraint.target = skeleton
+                constraint.name = CONTROL_RIG_CONSTRAINT_NAME
+                constraint.target = armature
                 constraint.subtarget = f"IK_Target_Control.{side}"
-                constraint.pole_target = skeleton
+                constraint.pole_target = armature
                 constraint.pole_subtarget = f"Leg_Pole_Control.{side}"
                 constraint.chain_count = len(ik_chain)
                 constraint.use_stretch = False
                 constraint.pole_angle = -math.pi / 2
-                log.append(
-                    f"OK IK on {system['lower_leg']} (chain={len(ik_chain)}) → IK_Target_Control.{side}"
-                )
             for deform_key, control_bone in (
                 ("foot", f"IK_Target_Control.{side}"),
                 ("toe", f"Toe_Control.{side}"),
             ):
                 if system.get(deform_key):
-                    log.append(
-                        _add_copy_transforms(skeleton, system[deform_key], control_bone)
-                    )
+                    _add_copy_transforms(armature, system[deform_key], control_bone)
         elif system_type == "head":
             if system.get("neck"):
-                log.append(
-                    _add_copy_transforms(skeleton, system["neck"], "Neck_Control")
-                )
-            log.append(_add_copy_transforms(skeleton, system["head"], "Head_Control"))
+                _add_copy_transforms(armature, system["neck"], "Neck_Control")
+            _add_copy_transforms(armature, system["head"], "Head_Control")
         elif system_type == "finger":
             for i, bone_name in enumerate(system.get("chain") or []):
-                log.append(
-                    _add_copy_transforms(
-                        skeleton, bone_name, _finger_ctrl_name(system, i)
-                    )
-                )
-    return log
+                _add_copy_transforms(armature, bone_name, _finger_ctrl_name(system, i))
+    for bone in armature.data.bones:
+        if CONTROL_SUFFIX not in bone.name:
+            bone.hide = True
 
 
 def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
@@ -1150,6 +1190,9 @@ def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
         for constraint in list(pose_bone.constraints):
             if getattr(constraint, "subtarget", None) in control_bone_names:
                 pose_bone.constraints.remove(constraint)
+    for bone in skeleton.pose.bones:
+        if CONTROL_SUFFIX not in bone.name:
+            bone.hide = False
     bpy.ops.object.mode_set(mode="EDIT")
     edit_bones = skeleton.data.edit_bones
     for name in list(control_bone_names):

@@ -52,16 +52,16 @@ SCHEMA
 
 EXAMPLE
 
-Source: ["Hips", "Spine", "LeftArm", "LeftForeArm", "RightArm", "RightForeArm"]
-Target: ["CR_Pelvis", "CR_Chest", "CR_UpperArm.L", "CR_Forearm.L", "CR_UpperArm.R", "CR_Forearm.R"]
+Source: ["mixamorig:Hips", "mixamorig:Spine", "mixamorig:LeftArm", "mixamorig:LeftForeArm", "mixamorig:RightArm", "mixamorig:RightForeArm"]
+Target: ["Pelvis_Control", "Chest_Control", "UpperArm_Control.L", "Forearm_Control.L", "UpperArm_Control.R", "Forearm_Control.R"]
 
 {
   "pairs": [
-    {"source": "Hips", "target": "CR_Pelvis"},
-    {"source": "Spine", "target": "CR_Chest"},
-    {"source": "LeftArm", "target": "CR_UpperArm.L"},
-    {"source": "LeftForeArm", "target": "CR_Forearm.L"},
-    {"source": "RightArm", "target": "CR_UpperArm.R"},
-    {"source": "RightForeArm", "target": "CR_Forearm.R"}
+    {"source": "mixamorig:Hips", "target": "Pelvis_Control"},
+    {"source": "mixamorig:Spine", "target": "Chest_Control"},
+    {"source": "mixamorig:LeftArm", "target": "UpperArm_Control.L"},
+    {"source": "mixamorig:LeftForeArm", "target": "Forearm_Control.L"},
+    {"source": "mixamorig:RightArm", "target": "UpperArm_Control.R"},
+    {"source": "mixamorig:RightForeArm", "target": "Forearm_Control.R"}
   ]
 }
