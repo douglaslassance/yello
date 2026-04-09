@@ -3,7 +3,7 @@ import subprocess
 import platform
 import bpy
 
-from .. import functions
+from .. import misc
 
 
 class MakeWritableOperator(bpy.types.Operator):
@@ -16,7 +16,7 @@ class MakeWritableOperator(bpy.types.Operator):
         return bool(bpy.data.filepath)
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        functions.make_writable(bpy.data.filepath)
+        misc.make_writable(bpy.data.filepath)
         return {"FINISHED"}
 
 

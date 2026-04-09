@@ -1,8 +1,9 @@
 import os
 import bpy
 
-from .. import functions
 from .. import contexts
+from .. import misc
+from .. import io
 
 
 class ExportMeshOperator(bpy.types.Operator):
@@ -27,6 +28,11 @@ class ExportMeshOperator(bpy.types.Operator):
     include_children: bpy.props.BoolProperty(
         name="Include Children",
         description="Will add all children from selected parents.",
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    save_settings: bpy.props.BoolProperty(
+        name="Save Settings",
+        description="Remember export settings in the blend file (glTF only).",
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
@@ -54,18 +60,23 @@ class ExportMeshOperator(bpy.types.Operator):
                     meshes.append(obj)
                 else:
                     joined_exports.append(obj)
-            joined_mesh = functions.join_objects(meshes)
+            joined_mesh = misc.join_objects(meshes)
             if joined_mesh:
                 joined_exports.append(joined_mesh)
             exports = joined_exports
         dirname, basename = os.path.split(bpy.data.filepath)
         filename = os.path.join(dirname, f"{os.path.splitext(basename)[0]}")
         if self.file_format == "FBX":
-            functions.export_fbx(exports, filename + ".fbx")
+            io.export_fbx(exports, filename + ".fbx")
         elif self.file_format == "GLTF":
-            functions.export_gltf(exports, filename + ".glb", animations=False)
+            io.export_gltf(
+                exports,
+                filename + ".glb",
+                animations=False,
+                save_settings=self.save_settings,
+            )
         if self.join_meshes and joined_mesh:
-            functions.delete_objects([joined_mesh])
+            misc.delete_objects([joined_mesh])
         return {"FINISHED"}
 
 
@@ -73,6 +84,15 @@ class ExportMeshesOperator(bpy.types.Operator):
     bl_idname = "object.export_meshes"
     bl_label = "Export Meshes"
     bl_description = "Export selected meshes to individual files"
+
+    file_format: bpy.props.EnumProperty(
+        name="File Format",
+        description="The file format to export.",
+        items=[
+            ("FBX", "FBX", "FBX"),
+            ("GLTF", "GLTF", "GLTF"),
+        ],
+    )  # pyright: ignore [reportInvalidTypeForm]
 
     prefix: bpy.props.StringProperty(
         name="Prefix",
@@ -91,6 +111,11 @@ class ExportMeshesOperator(bpy.types.Operator):
         description="Remove pre-existing FBX files that match this export prefix",
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    save_settings: bpy.props.BoolProperty(
+        name="Save Settings",
+        description="Remember export settings in the blend file (glTF only).",
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         if bpy.data.filepath:
@@ -106,25 +131,38 @@ class ExportMeshesOperator(bpy.types.Operator):
     def execute(self, context: bpy.types.Context) -> set[str]:
         selection = bpy.context.selected_objects
         dirname, basename = os.path.split(bpy.data.filepath)
+        extension = ".fbx" if self.file_format == "FBX" else ".glb"
         if self.remove_pre_existing:
-            for fbx_file in self.find_pre_existing(dirname, self.prefix):
-                os.remove(fbx_file)
+            for existing_file in self.find_pre_existing(
+                dirname, self.prefix, extension
+            ):
+                os.remove(existing_file)
         for object in selection:
             object_name = object.name.replace(".", self.separator)
             filename = os.path.join(
                 dirname,
-                f"{self.prefix}{self.separator}{object_name}.fbx",
+                f"{self.prefix}{self.separator}{object_name}{extension}",
             )
-            functions.export_fbx([object], filename)
+            if self.file_format == "FBX":
+                io.export_fbx([object], filename)
+            elif self.file_format == "GLTF":
+                io.export_gltf(
+                    [object],
+                    filename,
+                    animations=False,
+                    save_settings=self.save_settings,
+                )
         return {"FINISHED"}
 
-    def find_pre_existing(self, dirname: str, prefix: str) -> list[str]:
-        """Find FBX files corresponding to this scene file export."""
-        fbx_files = []
+    def find_pre_existing(
+        self, dirname: str, prefix: str, extension: str
+    ) -> list[str]:
+        """Find export files corresponding to this scene file export."""
+        files = []
         for basename in os.listdir(dirname):
-            if basename.startswith(prefix) and basename.endswith(".fbx"):
-                fbx_files.append(os.path.join(dirname, basename))
-        return fbx_files
+            if basename.startswith(prefix) and basename.endswith(extension):
+                files.append(os.path.join(dirname, basename))
+        return files
 
 
 class GenerateMeshIntersectionsOperator(bpy.types.Operator):
@@ -158,8 +196,8 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
             for source in sources:
                 if not source.type == "MESH":
                     continue
-                cut = functions.duplicate_object(source)
-                functions.apply_all_modifiers(cut)
+                cut = misc.duplicate_object(source)
+                misc.apply_all_modifiers(cut)
                 cut.name = f"{source.name}_{cutter.name}"
                 modifier = cut.modifiers.new(name="Subdivision", type="BOOLEAN")
                 modifier.operation = "INTERSECT"
@@ -167,7 +205,7 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
                 bpy.context.view_layer.objects.active = cut
                 bpy.ops.object.modifier_apply(modifier=modifier.name)
                 with contexts.SelectionContext():
-                    functions.select_objects([cut])
+                    misc.select_objects([cut])
                     with contexts.CursorContext():
                         bpy.context.scene.cursor.location = cutter.location
                         bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
@@ -177,7 +215,7 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
                 cuts.append(cut)
             intersection = None
             if len(cuts) > 1:
-                functions.select_objects(cuts)
+                misc.select_objects(cuts)
                 bpy.ops.object.join()
             elif len(cuts) == 1:
                 bpy.context.view_layer.objects.active = cuts[0]
@@ -186,5 +224,5 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
                 intersection = bpy.context.view_layer.objects.active
                 intersection.name = f"{collection.name}.{cutter.name}"
                 intersections.append(intersection)
-        functions.select_objects(intersections)
+        misc.select_objects(intersections)
         return {"FINISHED"}

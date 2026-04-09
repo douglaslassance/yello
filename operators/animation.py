@@ -6,7 +6,8 @@ import bpy
 from ..contexts import SelectionContext, VisibleContext
 
 from .. import animation
-from .. import functions
+from .. import misc
+from .. import io
 from .. import ollama
 from .. import rigging
 
@@ -36,9 +37,9 @@ class ExportAnimationOperator(bpy.types.Operator):
         objects = list(context.selected_objects)
         if self.include_children:
             for obj in list(objects):
-                objects.extend(functions.get_children(obj, recursive=True))
+                objects.extend(misc.get_children(obj, recursive=True))
         filename = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
-        functions.export_fbx(
+        io.export_fbx(
             objects, filename, animations=True, object_types={"ARMATURE"}
         )
         return {"FINISHED"}
@@ -58,7 +59,7 @@ class ExportAnimatedMeshOperator(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         filename = os.path.splitext(bpy.data.filepath)[0] + ".abc"
-        functions.make_writable(filename)
+        misc.make_writable(filename)
         bpy.ops.wm.alembic_export(
             apply_subdiv=True,
             check_existing=False,
@@ -85,6 +86,11 @@ class ExportActionsOperator(bpy.types.Operator):
         default=True,
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    save_settings: bpy.props.BoolProperty(
+        name="Save Settings",
+        description="Remember export settings in the blend file.",
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         if not bpy.data.filepath:
@@ -99,14 +105,14 @@ class ExportActionsOperator(bpy.types.Operator):
         skeleton = context.object
         objects = [skeleton]
         if self.include_children:
-            objects += functions.get_children(skeleton, recursive=True)
+            objects += misc.get_children(skeleton, recursive=True)
 
         filename = os.path.splitext(bpy.data.filepath)[0] + ".glb"
         year = datetime.datetime.now().year
-        functions.make_writable(filename)
+        misc.make_writable(filename)
         with VisibleContext(skeleton):
             with SelectionContext():
-                functions.select_objects(objects)
+                misc.select_objects(objects)
                 bpy.ops.export_scene.gltf(
                     filepath=filename,
                     check_existing=False,
@@ -123,7 +129,7 @@ class ExportActionsOperator(bpy.types.Operator):
                     export_animations=True,
                     export_animation_mode="ACTIONS",
                     export_def_bones=True,
-                    will_save_settings=True,
+                    will_save_settings=self.save_settings,
                 )
         return {"FINISHED"}
 
