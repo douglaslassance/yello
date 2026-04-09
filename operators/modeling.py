@@ -6,6 +6,95 @@ from .. import misc
 from .. import io
 
 
+class GenerateInvertedHullOperator(bpy.types.Operator):
+    """Generate an inverted hull outline on selected meshes using the ink technique."""
+
+    bl_idname = "object.generate_inverted_hull"
+    bl_label = "Generate Inverted Hull"
+    bl_description = (
+        "Duplicate selected meshes with flipped normals and a solidify modifier to"
+        " create an ink outline effect"
+    )
+
+    thickness: bpy.props.FloatProperty(
+        name="Thickness",
+        description="Thickness of the inverted hull outline",
+        default=0.01,
+        min=0.001,
+        soft_max=0.1,
+        step=0.1,
+        precision=3,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    suffix: bpy.props.StringProperty(
+        name="Suffix",
+        description="Suffix appended to the original object name for the hull duplicate",
+        default="_Hull",
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        if context.mode == "OBJECT" and context.selected_objects:
+            for obj in context.selected_objects:
+                if obj.type == "MESH":
+                    return True
+        return False
+
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
+        return context.window_manager.invoke_props_dialog(self)
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        hull_material = self._get_or_create_hull_material()
+        mesh_objects = [obj for obj in context.selected_objects if obj.type == "MESH"]
+        created = []
+        for obj in mesh_objects:
+            duplicate = misc.duplicate_object(obj)
+            duplicate.name = f"{obj.name}{self.suffix}"
+            duplicate.data.materials.clear()
+            duplicate.data.materials.append(hull_material)
+            modifier = duplicate.modifiers.new(name="Solidify", type="SOLIDIFY")
+            modifier.thickness = self.thickness
+            modifier.offset = -1.0
+            modifier.use_flip_normals = True
+            modifier.use_rim_only = True
+            duplicate.visible_shadow = False
+            duplicate.parent = obj
+            duplicate.matrix_parent_inverse = obj.matrix_world.inverted()
+            with contexts.SelectionContext():
+                misc.select_objects([duplicate])
+                bpy.ops.object.mode_set(mode="EDIT")
+                bpy.ops.mesh.select_all(action="SELECT")
+                bpy.ops.mesh.flip_normals()
+                bpy.ops.object.mode_set(mode="OBJECT")
+            created.append(duplicate)
+        misc.select_objects(created)
+        self.report(
+            {"INFO"},
+            f"Created {len(created)} inverted hull{'s' if len(created) != 1 else ''}.",
+        )
+        return {"FINISHED"}
+
+    def _get_or_create_hull_material(self) -> bpy.types.Material:
+        """Return the shared Hull material, creating it if it does not exist."""
+        material = bpy.data.materials.get("Hull")
+        if material:
+            return material
+        material = bpy.data.materials.new(name="Hull")
+        material.use_nodes = True
+        material.use_backface_culling = True
+        nodes = material.node_tree.nodes
+        nodes.clear()
+        output_node = nodes.new(type="ShaderNodeOutputMaterial")
+        output_node.location = (300, 0)
+        bsdf_node = nodes.new(type="ShaderNodeBsdfPrincipled")
+        bsdf_node.location = (0, 0)
+        bsdf_node.inputs["Base Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+        material.node_tree.links.new(
+            bsdf_node.outputs["BSDF"], output_node.inputs["Surface"]
+        )
+        return material
+
+
 class ExportMeshOperator(bpy.types.Operator):
     bl_idname = "object.export_mesh"
     bl_label = "Export Mesh"
