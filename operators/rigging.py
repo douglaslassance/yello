@@ -2,7 +2,7 @@ import bpy
 import math
 import mathutils
 
-from .. import functions
+from .. import misc
 from ..contexts import CursorContext, ModeContext
 from .. import ollama
 from .. import rigging
@@ -22,7 +22,7 @@ class AlignBoneRollsOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = functions.validate_bone_chain(context.editable_bones)
+        bones, error = misc.validate_bone_chain(context.editable_bones)
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -64,7 +64,7 @@ class AlignBonesOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = functions.validate_bone_chain(context.editable_bones)
+        bones, error = misc.validate_bone_chain(context.editable_bones)
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -74,7 +74,7 @@ class AlignBonesOperator(bpy.types.Operator):
         normal = (mid - start).cross(end - mid).normalized()
         for bone in bones[1:-1]:
             bone_vector = bone.tail - bone.head
-            projected_vector = functions.get_projected_vector(bone_vector, normal)
+            projected_vector = misc.get_projected_vector(bone_vector, normal)
             bone.tail = projected_vector + bone.head
         return {"FINISHED"}
 
@@ -100,7 +100,7 @@ class CreateBoneAlignedObjectOperator(bpy.types.Operator):
         bone = pose_bone.id_data
         matrix_final = bone.matrix_world @ pose_bone.matrix
         obj = bpy.data.objects.new("Test", None)
-        collection = functions.create_collection("Bone Aligned")
+        collection = misc.create_collection("Bone Aligned")
         collection.objects.link(obj)
         obj.name = bone.name
         obj.matrix_world = matrix_final
@@ -123,7 +123,7 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = functions.validate_bone_chain(context.editable_bones)
+        bones, error = misc.validate_bone_chain(context.editable_bones)
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -219,7 +219,7 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = functions.validate_bone_chain(context.editable_bones)
+        bones, error = misc.validate_bone_chain(context.editable_bones)
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -296,9 +296,9 @@ class BuildControlRigOperator(bpy.types.Operator):
             return {"CANCELLED"}
 
         if self.apply_transform:
-            objects = [skeleton] + functions.get_children(skeleton, recursive=True)
+            objects = [skeleton] + misc.get_children(skeleton, recursive=True)
             for obj in objects:
-                functions.apply_transforms(obj)
+                misc.apply_transforms(obj)
 
         bone_names = [b.name for b in skeleton.data.bones]
         systems, message, raw = rigging.classify_bones(bone_names)

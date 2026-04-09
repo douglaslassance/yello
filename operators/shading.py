@@ -1,9 +1,9 @@
 import bpy
 import bmesh
 
-from .. import functions
+from .. import misc
 from ..contexts import SelectionContext, ModeContext
-from ..functions import get_active_color_attribute, get_color_attribute_layer
+from ..misc import get_active_color_attribute, get_color_attribute_layer
 
 
 class SmoothNormalsOperator(bpy.types.Operator):
@@ -47,9 +47,9 @@ class SmoothNormalsOperator(bpy.types.Operator):
                     bpy.ops.object.modifier_add(type="DATA_TRANSFER")
                     data_transfer = obj.modifiers[-1]
                     data_transfer.name = "NormalTransfer"
-                functions.remove_object_from_all_collections(dup)
-                collection = functions.create_collection("Normal Sources")
-                functions.add_object_to_collection(dup, collection)
+                misc.remove_object_from_all_collections(dup)
+                collection = misc.create_collection("Normal Sources")
+                misc.add_object_to_collection(dup, collection)
                 # dup.animation_data_clear()
                 bpy.context.view_layer.objects.active = dup
                 bpy.ops.object.modifier_add(type="SMOOTH")
