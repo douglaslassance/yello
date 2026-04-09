@@ -81,6 +81,7 @@ class YELLO_PT_modeling(Panel):
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
+        col.operator("object.generate_inverted_hull", icon="META_CUBE")
         col.operator("object.slice_meshes_with_collection", icon="MOD_BUILD")
         col.separator()
         col.operator("object.export_mesh", icon="MESH_MONKEY")
