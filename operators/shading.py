@@ -15,7 +15,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
         "Generate normals by projecting them from a smoothed version of the model"
     )
 
-    iterations: bpy.props.FloatProperty(
+    iterations: bpy.props.IntProperty(
         name="Repeat", default=8
     )  # pyright: ignore [reportInvalidTypeForm]
 
@@ -33,7 +33,6 @@ class SmoothNormalsOperator(bpy.types.Operator):
     def execute(self, context: bpy.types.Context) -> set[str]:
         with SelectionContext() as selection_context:
             for obj in selection_context.selected:
-                obj.data.use_auto_smooth = True
                 dup = obj.copy()
                 dup.name = "{}.Normals".format(obj.name)
                 dup.data = obj.data.copy()
