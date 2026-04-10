@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 URL: str = "http://localhost:11434"
 MODEL: str = "codestral:latest"
 TIMEOUT_PING: int = 3
-TIMEOUT_INFER: int = 60
+TIMEOUT_INFER: int = 120
 
 
 def reachable() -> bool:
