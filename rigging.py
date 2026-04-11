@@ -597,23 +597,24 @@ def _build_spine_system(
     if system.get("pelvis") and system["pelvis"] in bone_data:
         bone = bone_data[system["pelvis"]]
         bone_len = (bone["tail"] - bone["head"]).length
+
+        pelvis_base = bone["head"]
+        bone_length = max(bone_len, 0.05)
         pelvis_edit_bone = _new_edit_bone(
             edit_bones,
             "Pelvis_Control",
-            bone["head"],
-            bone["tail"],
-            bone["roll"],
+            pelvis_base,
+            pelvis_base + mathutils.Vector((0.0, 0.0, bone_length)),
+            0.0,
             root_edit_bone,
             False,
         )
-        direction = (bone["tail"] - bone["head"]).normalized()
-        hips_tail = bone["head"] + direction * max(bone_len * 0.5, 0.05)
         hips_edit_bone = _new_edit_bone(
             edit_bones,
             "Hips_Control",
-            bone["head"],
-            hips_tail,
-            bone["roll"],
+            pelvis_base,
+            pelvis_base + mathutils.Vector((0.0, 0.0, -max(bone_len * 0.5, 0.05))),
+            0.0,
             pelvis_edit_bone,
             False,
         )
@@ -898,7 +899,7 @@ def _setup_spine_pose(
         _bone_color(pose_bones[pelvis_name], dracula.PURPLE)
     hips_name = "Hips_Control"
     if hips_name in pose_bones:
-        _assign_shape(pose_bones[hips_name], pelvis_hips_shape, True, 3.5)
+        _assign_shape(pose_bones[hips_name], pelvis_hips_shape, True, (3.5, -3.5, 3.5))
         _bone_color(pose_bones[hips_name], dracula.PURPLE)
     chest_name = "Chest_Control"
     if chest_name in pose_bones:
@@ -1122,6 +1123,7 @@ def _add_copy_transforms(
     constraint.target = skeleton
     constraint.subtarget = control_bone
     constraint.target_space, constraint.owner_space = "WORLD", "WORLD"
+
 
 
 def wire_deform_constraints(
