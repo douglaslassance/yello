@@ -1,11 +1,44 @@
 import bpy
 import math
 import mathutils
+import re
 
 from .. import misc
-from ..contexts import CursorContext, ModeContext
+from ..contexts import CursorContext, ModeContext, SelectionContext
 from .. import ollama
 from .. import rigging
+
+
+_SIDE_PATTERNS: list[re.Pattern] = [
+    # Full word prefix with optional separator: LeftArm, Left_Arm, Left.Arm, Left-Arm
+    re.compile(r'^(?P<side>Left|Right)[_\-\.]?(?P<base>.+)$', re.IGNORECASE),
+    # Full word suffix with optional separator: ArmLeft, Arm_Left, Arm.Left, Arm-Left
+    re.compile(r'^(?P<base>.+?)[_\-\.]?(?P<side>Left|Right)$', re.IGNORECASE),
+    # Single letter prefix with required separator: L_Arm, L.Arm, L-Arm
+    re.compile(r'^(?P<side>[LR])[_\-\.](?P<base>.+)$', re.IGNORECASE),
+    # Single letter suffix with required separator: Arm_L, Arm.L, Arm-L
+    re.compile(r'^(?P<base>.+)[_\-\.](?P<side>[LR])$', re.IGNORECASE),
+]
+
+
+def _conform_bone_side_name(name: str) -> str | None:
+    """Return the bone name normalized to the .L / .R suffix convention.
+
+    Detects any Left/Right/L/R token at the start or end of the name,
+    strips it along with any adjoining separator (_, -, or .), and appends
+    the canonical .L or .R suffix. Returns None if no side token is found
+    or if the name already ends with .L or .R.
+    """
+    if name.endswith('.L') or name.endswith('.R'):
+        return None
+    for pattern in _SIDE_PATTERNS:
+        match = pattern.fullmatch(name)
+        if match:
+            side_token = match.group('side').upper()
+            base = match.group('base')
+            suffix = 'L' if side_token in ('L', 'LEFT') else 'R'
+            return f"{base}.{suffix}"
+    return None
 
 
 class AlignBoneRollsOperator(bpy.types.Operator):
@@ -16,13 +49,12 @@ class AlignBoneRollsOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
-        if obj is not None:
-            if obj.mode == "EDIT":
-                return True
-        return False
+        if obj is None or obj.mode != "EDIT":
+            return False
+        return len([b for b in context.editable_bones if b.select]) >= 2
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = misc.validate_bone_chain(context.editable_bones)
+        bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -64,7 +96,7 @@ class AlignBonesOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = misc.validate_bone_chain(context.editable_bones)
+        bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -123,7 +155,7 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = misc.validate_bone_chain(context.editable_bones)
+        bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -219,7 +251,7 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = misc.validate_bone_chain(context.editable_bones)
+        bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -411,10 +443,34 @@ class RemoveControlRigOperator(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class ConformBoneSideNamesOperator(bpy.types.Operator):
+    bl_idname = "armature.conform_bone_side_names"
+    bl_label = "Conform Bone Name"
+    bl_description = (
+        "Rename bones to use the .L / .R suffix convention, stripping any "
+        "Left/Right/L/R prefix or suffix and its separator (_, -, or .)."
+    )
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        obj = context.object
+        return obj is not None and obj.type == "ARMATURE" and obj.mode == "EDIT"
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        renamed = 0
+        for bone in context.object.data.edit_bones:
+            new_name = _conform_bone_side_name(bone.name)
+            if new_name is not None:
+                bone.name = new_name
+                renamed += 1
+        self.report({"INFO"}, f"Renamed {renamed} bone(s).")
+        return {"FINISHED"}
+
+
 class NormalizeBoneRollOperator(bpy.types.Operator):
     bl_idname = "armature.normalize_bone_roll"
-    bl_label = "Normalize Bone Roll"
-    bl_description = "Set the roll closest to zero."
+    bl_label = "Minimize Bone Roll"
+    bl_description = "Rotate the roll of selected bones by 90° steps until it is as close to zero as possible."
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
@@ -439,4 +495,86 @@ class NormalizeBoneRollOperator(bpy.types.Operator):
                 else:
                     roll = new_roll
             bone.roll = roll
+        return {"FINISHED"}
+
+
+class TransferWeightsOperator(bpy.types.Operator):
+    bl_idname = "object.transfer_weights"
+    bl_label = "Transfer Weights"
+    bl_description = (
+        "Transfer vertex group weights from the last selected mesh (source) "
+        "to all other selected meshes (targets)."
+    )
+
+    apply_data_transfer: bpy.props.BoolProperty(
+        name="Apply Data Transfer",
+        description="Apply the Data Transfer modifier after transferring weights.",
+        default=True,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        if context.mode != "OBJECT":
+            return False
+        active = context.active_object
+        if not active or active.type != "MESH":
+            return False
+        targets = [
+            obj for obj in context.selected_objects
+            if obj.type == "MESH" and obj != active
+        ]
+        return len(targets) >= 1
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        source = context.active_object
+        targets = [
+            obj for obj in context.selected_objects
+            if obj.type == "MESH" and obj != source
+        ]
+        source_armature = next(
+            (
+                mod.object for mod in source.modifiers
+                if mod.type == "ARMATURE" and mod.object
+            ),
+            None,
+        )
+        with SelectionContext():
+            for target in targets:
+                bpy.ops.object.select_all(action="DESELECT")
+                target.select_set(True)
+                source.select_set(True)
+                context.view_layer.objects.active = source
+                bpy.ops.object.data_transfer(
+                    data_type="VGROUP_WEIGHTS",
+                    use_create=True,
+                    vert_mapping="POLYINTERP_NEAREST",
+                    layers_select_src="ALL",
+                    layers_select_dst="NAME",
+                )
+                if self.apply_data_transfer:
+                    context.view_layer.objects.active = target
+                    data_transfer_modifier = next(
+                        (
+                            mod for mod in target.modifiers
+                            if mod.type == "DATA_TRANSFER"
+                        ),
+                        None,
+                    )
+                    if data_transfer_modifier:
+                        bpy.ops.object.modifier_apply(
+                            modifier=data_transfer_modifier.name
+                        )
+                if source_armature:
+                    existing = next(
+                        (mod for mod in target.modifiers if mod.type == "ARMATURE"),
+                        None,
+                    )
+                    if existing:
+                        existing.object = source_armature
+                    else:
+                        armature_modifier = target.modifiers.new(
+                            name="Armature", type="ARMATURE"
+                        )
+                        armature_modifier.object = source_armature
+        self.report({"INFO"}, f"Transferred weights to {len(targets)} object(s).")
         return {"FINISHED"}
