@@ -51,7 +51,10 @@ class AlignBoneRollsOperator(bpy.types.Operator):
         obj = context.object
         if obj is None or obj.mode != "EDIT":
             return False
-        return len([b for b in context.editable_bones if b.select]) >= 2
+        editable_bones = context.editable_bones
+        if not editable_bones:
+            return False
+        return len([b for b in editable_bones if b.select]) >= 2
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
@@ -295,7 +298,7 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
 
 class BuildControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.build_control_rig"
-    bl_label = "Build Control Rig"
+    bl_label = "Generate Control Rig"
     bl_description = (
         "Detect arm/leg bones by name and build CR_ control bones within the armature. "
         "Deform bones are wired via Copy Transforms constraints to the control bones."
@@ -394,6 +397,7 @@ class BuildControlRigOperator(bpy.types.Operator):
         rigging.setup_spine_splineik(
             skeleton, systems, context, bone_data, curves_container
         )
+        rigging.apply_adaptive_control_scales(skeleton, systems)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         context.view_layer.objects.active = skeleton

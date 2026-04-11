@@ -554,15 +554,15 @@ def _bone_color(
 def _assign_shape(
     pose_bone: bpy.types.PoseBone,
     shape: bpy.types.Object,
-    use_bone_size: bool = True,
     scale: float | tuple[float, float, float] = 1.0,
 ) -> None:
     """Assign a custom shape to a pose bone.
 
     scale can be a float for uniform scaling or a (x, y, z) tuple for per-axis scaling.
+    Scale to Bone Length is always disabled since adaptive scaling handles display size.
     """
     pose_bone.custom_shape = shape
-    pose_bone.use_custom_shape_bone_size = use_bone_size
+    pose_bone.use_custom_shape_bone_size = False
     if isinstance(scale, (int, float)):
         pose_bone.custom_shape_scale_xyz = (scale, scale, scale)
     else:
@@ -895,15 +895,15 @@ def _setup_spine_pose(
     pelvis_hips_shape = shapes.get("pelvis_hips") or shapes["circle"]
     pelvis_name = "Pelvis_Control"
     if pelvis_name in pose_bones:
-        _assign_shape(pose_bones[pelvis_name], pelvis_hips_shape, True, (2.0, 2.0, 2.0))
+        _assign_shape(pose_bones[pelvis_name], pelvis_hips_shape, (2.0, 2.0, 2.0))
         _bone_color(pose_bones[pelvis_name], dracula.PURPLE)
     hips_name = "Hips_Control"
     if hips_name in pose_bones:
-        _assign_shape(pose_bones[hips_name], pelvis_hips_shape, True, (3.5, -3.5, 3.5))
+        _assign_shape(pose_bones[hips_name], pelvis_hips_shape, (3.5, -3.5, 3.5))
         _bone_color(pose_bones[hips_name], dracula.PURPLE)
     chest_name = "Chest_Control"
     if chest_name in pose_bones:
-        _assign_shape(pose_bones[chest_name], shapes["circle"], True, 1.6)
+        _assign_shape(pose_bones[chest_name], shapes["circle"], 1.6)
         _bone_color(pose_bones[chest_name], dracula.PURPLE)
 
 
@@ -918,18 +918,18 @@ def _setup_arm_pose(
     color = _side_color(side)
     shoulder_name = f"Shoulder_Control.{side}"
     if shoulder_name in pose_bones:
-        _assign_shape(pose_bones[shoulder_name], shapes["circle"], True, 1.2)
+        _assign_shape(pose_bones[shoulder_name], shapes["circle"], 1.2)
         _bone_color(pose_bones[shoulder_name], color)
     for name in (
         f"UpperArm_Control.{side}",
         f"Hand_Control.{side}",
     ):
         if name in pose_bones:
-            _assign_shape(pose_bones[name], shapes["circle"], True, 0.4)
+            _assign_shape(pose_bones[name], shapes["circle"], 0.4)
             _bone_color(pose_bones[name], color)
     forearm_name = f"Forearm_Control.{side}"
     if forearm_name in pose_bones:
-        _assign_shape(pose_bones[forearm_name], shapes["circle"], True, 0.3)
+        _assign_shape(pose_bones[forearm_name], shapes["circle"], 0.3)
         _bone_color(pose_bones[forearm_name], color)
 
 
@@ -945,20 +945,20 @@ def _setup_leg_pose(
 
     leg_target_name = f"Leg_Target_Control.{side}"
     if leg_target_name in pose_bones:
-        _assign_shape(pose_bones[leg_target_name], shapes["sphere"], False, 0.1)
+        _assign_shape(pose_bones[leg_target_name], shapes["sphere"], 0.1)
         _bone_color(pose_bones[leg_target_name], color)
     ball_name = f"Ball_Control.{side}"
     if ball_name in pose_bones:
-        _assign_shape(pose_bones[ball_name], shapes["diamond"], False, 0.03)
+        _assign_shape(pose_bones[ball_name], shapes["diamond"], 0.03)
         pose_bones[ball_name].custom_shape_translation = (0.0, 0.1, 0.0)
         _bone_color(pose_bones[ball_name], color)
     toe_name = f"Toe_Control.{side}"
     if toe_name in pose_bones:
-        _assign_shape(pose_bones[toe_name], shapes["sphere"], False, 0.06)
+        _assign_shape(pose_bones[toe_name], shapes["sphere"], 0.06)
         _bone_color(pose_bones[toe_name], color)
     leg_pole_name = f"Leg_Pole_Control.{side}"
     if leg_pole_name in pose_bones:
-        _assign_shape(pose_bones[leg_pole_name], shapes["sphere"], False, 0.04)
+        _assign_shape(pose_bones[leg_pole_name], shapes["sphere"], 0.04)
         _bone_color(pose_bones[leg_pole_name], color)
 
     ik_target_name = f"IK_Target_Control.{side}"
@@ -973,11 +973,11 @@ def _setup_head_pose(
     pose_bones = skeleton.pose.bones
     neck_name = "Neck_Control"
     if neck_name in pose_bones:
-        _assign_shape(pose_bones[neck_name], shapes["circle"], True, 1.15)
+        _assign_shape(pose_bones[neck_name], shapes["circle"], 1.15)
         _bone_color(pose_bones[neck_name], dracula.PURPLE)
     head_name = "Head_Control"
     if head_name in pose_bones:
-        _assign_shape(pose_bones[head_name], shapes["circle"], True, (0.6, 0.8, 0.8))
+        _assign_shape(pose_bones[head_name], shapes["circle"], (0.6, 0.8, 0.8))
         _bone_color(pose_bones[head_name], dracula.PURPLE)
 
 
@@ -1011,7 +1011,6 @@ def setup_control_rig_pose(
         _assign_shape(
             pose_bones[world_name],
             shapes.get("master") or shapes["square"],
-            False,
             0.5,
         )
         pose_bones[world_name].custom_shape_rotation_euler = (math.pi / 2, 0.0, 0.0)
@@ -1028,6 +1027,185 @@ def setup_control_rig_pose(
             _setup_head_pose(skeleton, shapes)
         elif system_type == "finger":
             _setup_finger_pose(skeleton, system, shapes)
+
+
+def get_skinned_meshes(skeleton: bpy.types.Object) -> list[bpy.types.Object]:
+    """Return all mesh objects that have an Armature modifier pointing at skeleton."""
+    return [
+        obj for obj in bpy.data.objects
+        if obj.type == "MESH"
+        and any(
+            mod.type == "ARMATURE" and mod.object == skeleton
+            for mod in obj.modifiers
+        )
+    ]
+
+
+def compute_mesh_bounding_extents(
+    meshes: list[bpy.types.Object],
+) -> tuple[float, float, float]:
+    """Return the (x, y, z) extents of the combined world-space bounding box of the meshes.
+
+    Each value is the full span on that axis. Returns (1, 1, 1) if no meshes are given.
+    """
+    minimum = [float("inf")] * 3
+    maximum = [float("-inf")] * 3
+    found = False
+    for mesh_obj in meshes:
+        for corner in mesh_obj.bound_box:
+            world_corner = mesh_obj.matrix_world @ mathutils.Vector(corner)
+            for axis in range(3):
+                minimum[axis] = min(minimum[axis], world_corner[axis])
+                maximum[axis] = max(maximum[axis], world_corner[axis])
+            found = True
+    if not found:
+        return (1.0, 1.0, 1.0)
+    return tuple(max(maximum[axis] - minimum[axis], 0.01) for axis in range(3))
+
+
+def compute_character_scale(meshes: list[bpy.types.Object]) -> float:
+    """Return the combined bounding box height of the given meshes as a scale reference."""
+    return compute_mesh_bounding_extents(meshes)[2]
+
+
+def compute_bone_perpendicular_radius(
+    skeleton: bpy.types.Object,
+    deform_bone_name: str,
+    meshes: list[bpy.types.Object],
+    percentile: float = 0.9,
+) -> float | None:
+    """Compute the display radius for a control bone from its deform bone's weighted vertices.
+
+    Projects all vertices belonging to the deform bone's vertex group onto the plane
+    perpendicular to the bone's Y axis at its head, then returns the given percentile
+    of those projected distances. Returns None if no qualifying vertices are found.
+    """
+    bone = skeleton.data.bones.get(deform_bone_name)
+    if bone is None:
+        return None
+    bone_head_world = skeleton.matrix_world @ bone.head_local
+    bone_y_world = (
+        skeleton.matrix_world.to_3x3()
+        @ bone.matrix_local.to_3x3()
+        @ mathutils.Vector((0.0, 1.0, 0.0))
+    ).normalized()
+    radii = []
+    for mesh_obj in meshes:
+        vertex_group = mesh_obj.vertex_groups.get(deform_bone_name)
+        if vertex_group is None:
+            continue
+        group_index = vertex_group.index
+        for vertex in mesh_obj.data.vertices:
+            weight = next(
+                (group.weight for group in vertex.groups if group.group == group_index),
+                0.0,
+            )
+            if weight < 0.01:
+                continue
+            vertex_world = mesh_obj.matrix_world @ vertex.co
+            to_vertex = vertex_world - bone_head_world
+            projected = to_vertex - to_vertex.dot(bone_y_world) * bone_y_world
+            radii.append(projected.length)
+    if not radii:
+        return None
+    radii.sort()
+    return radii[min(int(len(radii) * percentile), len(radii) - 1)]
+
+
+def _build_control_to_deform_map(systems: list[SystemDict]) -> dict[str, str]:
+    """Build a mapping from every control bone name to its corresponding deform bone name."""
+    mapping = {}
+    for system in systems:
+        system_type = system["type"]
+        if system_type == "spine":
+            pelvis = system.get("pelvis")
+            if pelvis:
+                mapping["Pelvis_Control"] = pelvis
+                mapping["Hips_Control"] = pelvis
+            vertebrae = system.get("vertebrae") or []
+            if vertebrae:
+                mapping["Chest_Control"] = vertebrae[-1]
+        elif system_type == "arm":
+            side = system["side"]
+            if system.get("shoulder"):
+                mapping[f"Shoulder_Control.{side}"] = system["shoulder"]
+            mapping[f"UpperArm_Control.{side}"] = system["upper_arm"]
+            mapping[f"Forearm_Control.{side}"] = system["forearm"]
+            mapping[f"Hand_Control.{side}"] = system["hand"]
+        elif system_type == "leg":
+            side = system["side"]
+            mapping[f"Leg_Target_Control.{side}"] = system["foot"]
+            mapping[f"IK_Target_Control.{side}"] = system["foot"]
+            if system.get("toe"):
+                mapping[f"Ball_Control.{side}"] = system["toe"]
+                mapping[f"Toe_Control.{side}"] = system["toe"]
+        elif system_type == "head":
+            if system.get("neck"):
+                mapping["Neck_Control"] = system["neck"]
+            mapping["Head_Control"] = system["head"]
+        elif system_type == "finger":
+            for i, bone_name in enumerate(system.get("chain") or []):
+                mapping[_finger_ctrl_name(system, i)] = bone_name
+    return mapping
+
+
+def apply_adaptive_control_scales(
+    skeleton: bpy.types.Object,
+    systems: list[SystemDict],
+) -> None:
+    """Scale control bone display shapes adaptively based on the skinned mesh geometry.
+
+    For each control bone, finds the perpendicular bounding radius of the vertices
+    weighted to its corresponding deform bone and uses that as the display scale.
+    Bones with no weighted vertices fall back to five percent of the character's height.
+    The sign on each axis is preserved so that intentional flips (e.g. Hips_Control)
+    are not overridden.
+    """
+    _POLE_CONTROL_SCALE = 0.05
+
+    meshes = get_skinned_meshes(skeleton)
+    extents = compute_mesh_bounding_extents(meshes)
+    fallback_scale = extents[2] * 0.05
+    control_to_deform = _build_control_to_deform_map(systems)
+    pole_names = {
+        f"Leg_Pole_Control.{system['side']}"
+        for system in systems
+        if system["type"] == "leg"
+    }
+    for pose_bone in skeleton.pose.bones:
+        if not pose_bone.custom_shape:
+            continue
+        pose_bone.use_custom_shape_bone_size = False
+        if pose_bone.name == "World_Control":
+            world_scale = max(extents[0], extents[1]) / 2.0 * 1.30
+            pose_bone.custom_shape_scale_xyz = (
+                world_scale,
+                world_scale,
+                world_scale,
+            )
+            continue
+        if pose_bone.name in pole_names:
+            pose_bone.custom_shape_scale_xyz = (
+                _POLE_CONTROL_SCALE,
+                _POLE_CONTROL_SCALE,
+                _POLE_CONTROL_SCALE,
+            )
+            continue
+        deform_bone_name = control_to_deform.get(pose_bone.name)
+        radius = (
+            compute_bone_perpendicular_radius(skeleton, deform_bone_name, meshes)
+            if deform_bone_name
+            else None
+        )
+        scale = radius if radius is not None else fallback_scale
+        if pose_bone.name == "Hips_Control":
+            scale *= 0.9
+        current = pose_bone.custom_shape_scale_xyz
+        pose_bone.custom_shape_scale_xyz = (
+            math.copysign(scale, current[0]),
+            math.copysign(scale, current[1]),
+            math.copysign(scale, current[2]),
+        )
 
 
 def setup_spine_splineik(
@@ -1208,7 +1386,7 @@ def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
         for constraint in list(pose_bone.constraints):
             if getattr(constraint, "subtarget", None) in control_bone_names:
                 pose_bone.constraints.remove(constraint)
-    for bone in skeleton.pose.bones:
+    for bone in skeleton.data.bones:
         if CONTROL_SUFFIX not in bone.name:
             bone.hide = False
     bpy.ops.object.mode_set(mode="EDIT")
