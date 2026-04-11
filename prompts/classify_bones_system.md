@@ -32,7 +32,11 @@ finger
   Required: chain — ordered list of bones from knuckle to fingertip
   Also: name (thumb/index/middle/ring/pinky or finger_1/finger_2/…), side, parent (hand bone)
 
+SEPARATORS
+Bone name tokens may be joined by _, -, ., or nothing. Treat these as equivalent when identifying roles and sides (e.g. "LeftArm", "Left_Arm", "Left-Arm", "Left.Arm" are the same; "Arm.L", "Arm_L", "ArmL" all indicate side "L").
+
 SYNONYMS
+side       = bones prefixed or suffixed with "Left"/"Right" or "L"/"R" map to side "L" or "R" respectively
 pelvis     = pelvis, hips, hip — a bone named "Hips" is the pelvis, not a vertebra
 upper_arm  = upper arm, arm, humerus — a bone simply called "Arm" is the upper arm
 forearm    = forearm, lower arm, fore arm

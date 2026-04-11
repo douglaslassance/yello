@@ -27,6 +27,8 @@ class YELLO_PT_rigging(Panel):
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
+        col.operator("armature.conform_bone_side_names", icon="BONE_DATA")
+        col.separator()
         col.operator("pose.create_bone_aligned_object", icon="EMPTY_DATA")
         col.operator("armature.distribute_bones_evenly", icon="CURVE_PATH")
         col.operator("armature.align_bones", icon="CON_TRACKTO")
@@ -34,6 +36,8 @@ class YELLO_PT_rigging(Panel):
         col.operator("armature.normalize_bone_roll", icon="TRACKING_CLEAR_BACKWARDS")
         col.operator("armature.generate_twist_bones", icon="FORCE_MAGNETIC")
         col.operator("armature.generate_blend_bone", icon="ORIENTATION_GLOBAL")
+        col.separator()
+        col.operator("object.transfer_weights", icon="MOD_VERTEX_WEIGHT")
         col.separator()
         col.operator("armature.build_control_rig", icon="ARMATURE_DATA")
         col.operator("armature.remove_control_rig", icon="X")

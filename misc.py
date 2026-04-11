@@ -109,14 +109,23 @@ def validate_bone_chain(
     """
     if not editable_bones or len(editable_bones) < minimum:
         return None, f"A minimum of {minimum} bones should be selected"
-    bones = list(editable_bones)
-    bones.reverse()
-    for bone in bones[:-1]:
-        parent_index = bones.index(bone) + 1
-        if bone.parent != bones[parent_index]:
+    bone_set = set(editable_bones)
+    roots = [bone for bone in bone_set if bone.parent not in bone_set]
+    if len(roots) != 1:
+        return None, "Selected bones need to be connected"
+    chain = []
+    bone = roots[0]
+    while bone in bone_set:
+        chain.append(bone)
+        children_in_set = [child for child in bone.children if child in bone_set]
+        if not children_in_set:
+            break
+        if len(children_in_set) > 1:
             return None, "Selected bones need to be connected"
-    bones.reverse()
-    return bones, None
+        bone = children_in_set[0]
+    if len(chain) != len(bone_set):
+        return None, "Selected bones need to be connected"
+    return chain, None
 
 
 def select_objects(objects: list[bpy.types.Object]) -> None:
