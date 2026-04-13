@@ -120,7 +120,7 @@ class ExportActionsOperator(bpy.types.Operator):
                     use_visible=False,
                     export_yup=True,
                     export_reset_pose_bones=True,
-                    export_copyright=f"© {year} Playsthetic",
+                    export_copyright=f"© {year} Douglas Lassance",
                     export_format="GLB",
                     export_all_vertex_colors=True,
                     export_bake_animation=True,
