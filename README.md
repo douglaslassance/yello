@@ -1,6 +1,6 @@
 # yello
 
-Yello is Playsthetic's integration inside Blender. It adds functionalities that should make things more efficient for our general tasks within the application. You may wonder where the name Yello comes from. Blender is named after one song of the Swiss electronic band [Yello](https://en.wikipedia.org/wiki/Yello).
+Yello aims to make common Blender operations more efficient. You may wonder where the name Yello comes from. Blender is named after one song of the Swiss electronic band [Yello](https://en.wikipedia.org/wiki/Yello).
 
 ## Pre-requisites
 
