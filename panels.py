@@ -41,6 +41,8 @@ class YELLO_PT_rigging(Panel):
         col.separator()
         col.operator("armature.build_control_rig", icon="ARMATURE_DATA")
         col.operator("armature.remove_control_rig", icon="X")
+        col.separator()
+        col.operator("armature.retarget_animation", icon="ANIM")
 
 
 class YELLO_PT_animation(Panel):
