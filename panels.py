@@ -29,6 +29,7 @@ class YELLO_PT_rigging(Panel):
         col = layout.column(align=True)
         col.operator("armature.conform_bone_side_names", icon="BONE_DATA")
         col.separator()
+        col.operator("armature.toggle_deformer_visibility", icon="HIDE_OFF")
         col.operator("pose.create_bone_aligned_object", icon="EMPTY_DATA")
         col.operator("armature.distribute_bones_evenly", icon="CURVE_PATH")
         col.operator("armature.align_bones", icon="CON_TRACKTO")

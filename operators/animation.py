@@ -129,6 +129,7 @@ class ExportActionsOperator(bpy.types.Operator):
                     export_animations=True,
                     export_animation_mode="ACTIONS",
                     export_def_bones=True,
+                    export_materials="NONE",
                     will_save_settings=self.save_settings,
                 )
         return {"FINISHED"}
