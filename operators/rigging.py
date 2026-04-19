@@ -9,6 +9,20 @@ from .. import ollama
 from .. import rigging
 
 
+def _minimize_bone_roll(bone: bpy.types.EditBone) -> None:
+    """Snap the bone's roll to the nearest 90° increment closest to zero."""
+    roll = bone.roll
+    if roll == 0:
+        return
+    sign = 1 if roll < 0 else -1
+    while True:
+        new_roll = roll + math.pi / 2.0 * sign
+        if abs(roll) < abs(new_roll):
+            break
+        roll = new_roll
+    bone.roll = roll
+
+
 _SIDE_PATTERNS: list[re.Pattern] = [
     # Full word prefix with optional separator: LeftArm, Left_Arm, Left.Arm, Left-Arm
     re.compile(r'^(?P<side>Left|Right)[_\-\.]?(?P<base>.+)$', re.IGNORECASE),
@@ -359,6 +373,12 @@ class BuildControlRigOperator(bpy.types.Operator):
         default=True,
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    minimize_bone_rolls: bpy.props.BoolProperty(
+        name="Minimize Bone Rolls",
+        description="Set the roll of all control bones to zero after building.",
+        default=False,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
@@ -372,6 +392,7 @@ class BuildControlRigOperator(bpy.types.Operator):
             self.layout.label(text="Ollama is offline.", icon="ERROR")
             self.layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
         self.layout.prop(self, "apply_transform")
+        self.layout.prop(self, "minimize_bone_rolls")
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
@@ -408,6 +429,10 @@ class BuildControlRigOperator(bpy.types.Operator):
                     "roll": edit_bone.roll,
                 }
         rigging.build_control_bones(skeleton.data, systems, bone_data)
+        if self.minimize_bone_rolls:
+            for edit_bone in skeleton.data.edit_bones:
+                if rigging.CONTROL_SUFFIX in edit_bone.name:
+                    _minimize_bone_roll(edit_bone)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         shapes = {
@@ -534,20 +559,8 @@ class NormalizeBoneRollOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones = context.editable_bones
-        for bone in bones:
-            roll = bone.roll
-            if roll == 0:
-                continue
-            closest = False
-            sign = 1 if roll < 0 else -1
-            while not closest:
-                new_roll = roll + math.pi / 2.0 * sign
-                if abs(roll) < abs(new_roll):
-                    closest = True
-                else:
-                    roll = new_roll
-            bone.roll = roll
+        for bone in context.editable_bones:
+            _minimize_bone_roll(bone)
         return {"FINISHED"}
 
 
