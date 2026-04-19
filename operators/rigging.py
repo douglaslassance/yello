@@ -41,6 +41,47 @@ def _conform_bone_side_name(name: str) -> str | None:
     return None
 
 
+class ToggleDeformerVisibilityOperator(bpy.types.Operator):
+    """Toggle the visibility of all deforming bones uniformly based on the first one."""
+
+    bl_idname = "armature.toggle_deformer_visibility"
+    bl_label = "Toggle Deformer Visibility"
+    bl_description = "Toggle and unify the visibility of all deforming bones based on the state of the first one"
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        obj = context.object
+        if obj is None or obj.type != "ARMATURE":
+            return False
+        return context.mode in {"POSE", "EDIT_ARMATURE"}
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        armature = context.object
+        if context.mode == "EDIT_ARMATURE":
+            deforming_bones = [
+                bone for bone in armature.data.edit_bones if bone.use_deform
+            ]
+            if not deforming_bones:
+                self.report({"WARNING"}, "No deforming bones found.")
+                return {"CANCELLED"}
+            should_hide = not deforming_bones[0].hide
+            for bone in deforming_bones:
+                bone.hide = should_hide
+        else:
+            deforming_pose_bones = [
+                pose_bone
+                for pose_bone in armature.pose.bones
+                if pose_bone.bone.use_deform
+            ]
+            if not deforming_pose_bones:
+                self.report({"WARNING"}, "No deforming bones found.")
+                return {"CANCELLED"}
+            should_hide = not deforming_pose_bones[0].hide
+            for pose_bone in deforming_pose_bones:
+                pose_bone.hide = should_hide
+        return {"FINISHED"}
+
+
 class AlignBoneRollsOperator(bpy.types.Operator):
     bl_idname = "armature.align_bone_rolls"
     bl_label = "Align Bone Rolls"
@@ -57,12 +98,20 @@ class AlignBoneRollsOperator(bpy.types.Operator):
         return len([b for b in editable_bones if b.select]) >= 2
 
     def execute(self, context: bpy.types.Context) -> set[str]:
+        armature = context.object
+        identity = mathutils.Vector((1.0, 1.0, 1.0))
+        if armature.scale != identity:
+            self.report(
+                {"ERROR"},
+                "Armature has an unapplied scale. Apply the transform before aligning bone rolls.",
+            )
+            return {"CANCELLED"}
         bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
         first_bone_vector = bones[0].tail - bones[0].head
-        last_bone_vector = bones[-1].head - bones[-1].tail
+        last_bone_vector = bones[-1].tail - bones[-1].head
         normal = first_bone_vector.cross(last_bone_vector).normalized()
         # TODO: Intersection is calculated in local space.
         # This won't work if the amature transform is not zeroed out.
