@@ -489,6 +489,7 @@ class BuildControlRigOperator(bpy.types.Operator):
         rigging.setup_hitbox_controls_pose(
             skeleton, hitbox_bone_names, shapes.get("hitbox")
         )
+        rigging.setup_hitbox_visibility_toggle(skeleton, hitbox_bone_names)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         context.view_layer.objects.active = skeleton
