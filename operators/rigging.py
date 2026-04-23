@@ -375,8 +375,8 @@ class BuildControlRigOperator(bpy.types.Operator):
 
     minimize_bone_rolls: bpy.props.BoolProperty(
         name="Minimize Bone Rolls",
-        description="Set the roll of all control bones to zero after building.",
-        default=False,
+        description="Snap every bone's roll to the nearest 90° increment closest to zero before building the control rig.",
+        default=True,
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
@@ -419,6 +419,9 @@ class BuildControlRigOperator(bpy.types.Operator):
         rigging.remove_control_rig_bones(skeleton)
 
         bpy.ops.object.mode_set(mode="EDIT")
+        if self.minimize_bone_rolls:
+            for edit_bone in skeleton.data.edit_bones:
+                _minimize_bone_roll(edit_bone)
         bone_data = {}
         for name in all_bone_names:
             if name in skeleton.data.edit_bones:
@@ -429,10 +432,6 @@ class BuildControlRigOperator(bpy.types.Operator):
                     "roll": edit_bone.roll,
                 }
         rigging.build_control_bones(skeleton.data, systems, bone_data)
-        if self.minimize_bone_rolls:
-            for edit_bone in skeleton.data.edit_bones:
-                if rigging.CONTROL_SUFFIX in edit_bone.name:
-                    _minimize_bone_roll(edit_bone)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         shapes = {
