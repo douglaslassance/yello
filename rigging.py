@@ -918,19 +918,28 @@ def build_hitbox_control_bones(
         )
 
 
+HITBOX_CONTROL_DISPLAY_SIZE: float = 0.1
+
+
 def setup_hitbox_controls_pose(
     skeleton: bpy.types.Object,
     hitbox_bone_names: list[str],
     shape: bpy.types.Object | None,
 ) -> None:
-    """Assign the hitbox shape at half size and Dracula pink color to each hitbox control."""
+    """Assign the hitbox shape at a fixed display size and Dracula pink color.
+
+    The shape is normalized against its own bounding box so the control always
+    displays at HITBOX_CONTROL_DISPLAY_SIZE regardless of authored shape size.
+    """
     pose_bones = skeleton.pose.bones
+    shape_half_extent = compute_shape_perpendicular_half_extent(shape)
+    scale = (HITBOX_CONTROL_DISPLAY_SIZE / 2.0) / shape_half_extent
     for bone_name in hitbox_bone_names:
         control_name = hitbox_control_name(bone_name)
         if control_name not in pose_bones:
             continue
         if shape is not None:
-            _assign_shape(pose_bones[control_name], shape, 0.5)
+            _assign_shape(pose_bones[control_name], shape, scale)
         _bone_color(pose_bones[control_name], dracula.PINK)
 
 
@@ -1166,6 +1175,25 @@ def compute_character_scale(meshes: list[bpy.types.Object]) -> float:
     return compute_mesh_bounding_extents(meshes)[2]
 
 
+def compute_shape_perpendicular_half_extent(shape: bpy.types.Object | None) -> float:
+    """Return the shape's maximum half-extent perpendicular to the bone axis.
+
+    Custom bone shapes are displayed in bone-local space where Y is along the
+    bone, so X and Z are perpendicular. Returning the larger of the two
+    half-extents lets callers normalize custom_shape_scale_xyz so that any
+    authored shape size yields a consistently-sized control.
+    """
+    if shape is None or shape.type != "MESH" or not shape.data.vertices:
+        return 1.0
+    min_x = min(vertex.co.x for vertex in shape.data.vertices)
+    max_x = max(vertex.co.x for vertex in shape.data.vertices)
+    min_z = min(vertex.co.z for vertex in shape.data.vertices)
+    max_z = max(vertex.co.z for vertex in shape.data.vertices)
+    half_x = (max_x - min_x) / 2.0
+    half_z = (max_z - min_z) / 2.0
+    return max(max(half_x, half_z), 0.001)
+
+
 def compute_bone_perpendicular_radius(
     skeleton: bpy.types.Object,
     deform_bone_name: str,
@@ -1274,8 +1302,9 @@ def apply_adaptive_control_scales(
         if not pose_bone.custom_shape:
             continue
         pose_bone.use_custom_shape_bone_size = False
+        shape_half_extent = compute_shape_perpendicular_half_extent(pose_bone.custom_shape)
         if pose_bone.name == "World_Control":
-            world_scale = max(extents[0], extents[1]) / 2.0 * 1.30
+            world_scale = max(extents[0], extents[1]) / 2.0 * 1.30 / shape_half_extent
             pose_bone.custom_shape_scale_xyz = (
                 world_scale,
                 world_scale,
@@ -1283,10 +1312,11 @@ def apply_adaptive_control_scales(
             )
             continue
         if pose_bone.name in pole_names:
+            pole_scale = _POLE_CONTROL_SCALE / shape_half_extent
             pose_bone.custom_shape_scale_xyz = (
-                _POLE_CONTROL_SCALE,
-                _POLE_CONTROL_SCALE,
-                _POLE_CONTROL_SCALE,
+                pole_scale,
+                pole_scale,
+                pole_scale,
             )
             continue
         deform_bone_name = control_to_deform.get(pose_bone.name)
@@ -1295,7 +1325,7 @@ def apply_adaptive_control_scales(
             if deform_bone_name
             else None
         )
-        scale = radius if radius is not None else fallback_scale
+        scale = (radius if radius is not None else fallback_scale) / shape_half_extent
         if pose_bone.name == "Hips_Control":
             scale *= 0.9
         current = pose_bone.custom_shape_scale_xyz
