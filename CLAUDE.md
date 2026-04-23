@@ -6,4 +6,4 @@ Do not use abbreviations or acronyms in variable, parameter, or function names. 
 
 Do not include `Co-Authored-By` or any other attribution trailer in commit messages.
 
-Write commit messages as a single-line summary in the imperative mood (e.g. "Add hitbox control visibility toggle", not "Added..." or "Adds..."). Do not include a body.
+Write commit messages as a single-line summary (subject line) in the imperative mood (e.g. "Add hitbox control visibility toggle", not "Added..." or "Adds..."), capped at 72 characters. Do not include a body.
