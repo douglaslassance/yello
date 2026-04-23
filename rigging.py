@@ -885,6 +885,64 @@ def build_control_bones(
             _build_finger_system(edit_bones, system, bone_data, parent_edit_bone)
 
 
+def collect_hitbox_bone_names(skeleton: bpy.types.Object) -> list[str]:
+    """Return deform bone names containing 'hitbox' (case-insensitive), excluding control bones."""
+    return [
+        bone.name
+        for bone in skeleton.data.bones
+        if "hitbox" in bone.name.lower() and CONTROL_SUFFIX not in bone.name
+    ]
+
+
+def hitbox_control_name(bone_name: str) -> str:
+    """Return the control bone name for a given hitbox deform bone."""
+    return f"{bone_name}{CONTROL_SUFFIX}"
+
+
+def build_hitbox_control_bones(
+    armature_data: bpy.types.Armature,
+    hitbox_bone_data: BoneDataDict,
+) -> None:
+    """Create a Hitbox control bone for each hitbox bone, parented to World_Control."""
+    edit_bones = armature_data.edit_bones
+    world_edit_bone = edit_bones.get("World_Control")
+    for bone_name, bone in hitbox_bone_data.items():
+        _new_edit_bone(
+            edit_bones,
+            hitbox_control_name(bone_name),
+            bone["head"],
+            bone["tail"],
+            bone["roll"],
+            world_edit_bone,
+            False,
+        )
+
+
+def setup_hitbox_controls_pose(
+    skeleton: bpy.types.Object,
+    hitbox_bone_names: list[str],
+    shape: bpy.types.Object | None,
+) -> None:
+    """Assign the hitbox shape at half size and Dracula pink color to each hitbox control."""
+    pose_bones = skeleton.pose.bones
+    for bone_name in hitbox_bone_names:
+        control_name = hitbox_control_name(bone_name)
+        if control_name not in pose_bones:
+            continue
+        if shape is not None:
+            _assign_shape(pose_bones[control_name], shape, 0.5)
+        _bone_color(pose_bones[control_name], dracula.PINK)
+
+
+def wire_hitbox_constraints(
+    skeleton: bpy.types.Object,
+    hitbox_bone_names: list[str],
+) -> None:
+    """Add Copy Transforms constraints from each hitbox deform bone to its control."""
+    for bone_name in hitbox_bone_names:
+        _add_copy_transforms(skeleton, bone_name, hitbox_control_name(bone_name))
+
+
 def _setup_spine_pose(
     skeleton: bpy.types.Object,
     system: SystemDict,

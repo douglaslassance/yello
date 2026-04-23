@@ -415,6 +415,8 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         all_bone_names = rigging.extract_bone_names(systems)
 
+        hitbox_bone_names = rigging.collect_hitbox_bone_names(skeleton)
+
         bpy.ops.object.mode_set(mode="POSE")
         rigging.remove_control_rig_bones(skeleton)
 
@@ -431,7 +433,17 @@ class BuildControlRigOperator(bpy.types.Operator):
                     "tail": edit_bone.tail.copy(),
                     "roll": edit_bone.roll,
                 }
+        hitbox_bone_data = {}
+        for name in hitbox_bone_names:
+            if name in skeleton.data.edit_bones:
+                edit_bone = skeleton.data.edit_bones[name]
+                hitbox_bone_data[name] = {
+                    "head": edit_bone.head.copy(),
+                    "tail": edit_bone.tail.copy(),
+                    "roll": edit_bone.roll,
+                }
         rigging.build_control_bones(skeleton.data, systems, bone_data)
+        rigging.build_hitbox_control_bones(skeleton.data, hitbox_bone_data)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         shapes = {
@@ -454,6 +466,9 @@ class BuildControlRigOperator(bpy.types.Operator):
             "pelvis_hips": rigging.get_or_load_shape(
                 "other_controller.003", "other_controller.003"
             ),
+            "hitbox": rigging.get_or_load_shape(
+                "other_controller.002", "other_controller.002"
+            ),
         }
         shapes_container = rigging.get_or_create_control_rig_container(
             skeleton, "Shapes"
@@ -471,11 +486,15 @@ class BuildControlRigOperator(bpy.types.Operator):
             skeleton, systems, context, bone_data, curves_container
         )
         rigging.apply_adaptive_control_scales(skeleton, systems)
+        rigging.setup_hitbox_controls_pose(
+            skeleton, hitbox_bone_names, shapes.get("hitbox")
+        )
         bpy.ops.object.mode_set(mode="OBJECT")
 
         context.view_layer.objects.active = skeleton
         bpy.ops.object.mode_set(mode="POSE")
         rigging.wire_deform_constraints(skeleton, systems)
+        rigging.wire_hitbox_constraints(skeleton, hitbox_bone_names)
         bpy.ops.object.mode_set(mode="OBJECT")
 
         skeleton.show_in_front = False
