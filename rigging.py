@@ -1137,10 +1137,15 @@ def setup_control_rig_pose(
 
 
 def get_skinned_meshes(skeleton: bpy.types.Object) -> list[bpy.types.Object]:
-    """Return all mesh objects that have an Armature modifier pointing at skeleton."""
+    """Return visible mesh objects that have an Armature modifier pointing at skeleton.
+
+    Hidden meshes (e.g. hitbox collision cubes) are excluded so they do not
+    skew adaptive control sizing computations.
+    """
     return [
         obj for obj in bpy.data.objects
         if obj.type == "MESH"
+        and not obj.hide_viewport
         and any(
             mod.type == "ARMATURE" and mod.object == skeleton
             for mod in obj.modifiers
