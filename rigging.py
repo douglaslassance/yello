@@ -943,6 +943,46 @@ def wire_hitbox_constraints(
         _add_copy_transforms(skeleton, bone_name, hitbox_control_name(bone_name))
 
 
+HITBOX_TOGGLE_PROPERTY_NAME: str = "Show Hitbox Control"
+
+
+def setup_hitbox_visibility_toggle(
+    skeleton: bpy.types.Object,
+    hitbox_bone_names: list[str],
+) -> None:
+    """Expose a 'Show Hitbox Control' checkbox on World_Control and drive hitbox control visibility from it."""
+    pose_bones = skeleton.pose.bones
+    world_control = pose_bones.get("World_Control")
+    if world_control is None or not hitbox_bone_names:
+        return
+    world_control[HITBOX_TOGGLE_PROPERTY_NAME] = True
+    world_control.id_properties_ui(HITBOX_TOGGLE_PROPERTY_NAME).update(
+        description="Show hitbox control bones",
+        default=True,
+    )
+    data_path = f'pose.bones["World_Control"]["{HITBOX_TOGGLE_PROPERTY_NAME}"]'
+    for bone_name in hitbox_bone_names:
+        control_name = hitbox_control_name(bone_name)
+        control_bone = skeleton.data.bones.get(control_name)
+        if control_bone is None:
+            continue
+        try:
+            control_bone.driver_remove("hide")
+        except Exception:
+            pass
+        fcurve = control_bone.driver_add("hide")
+        driver = fcurve.driver
+        driver.type = "SCRIPTED"
+        variable = driver.variables.new()
+        variable.name = "show"
+        variable.type = "SINGLE_PROP"
+        target = variable.targets[0]
+        target.id_type = "OBJECT"
+        target.id = skeleton
+        target.data_path = data_path
+        driver.expression = "1 - show"
+
+
 def _setup_spine_pose(
     skeleton: bpy.types.Object,
     system: SystemDict,
