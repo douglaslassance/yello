@@ -5,3 +5,5 @@ Do not use spaces to align operators or values in the code. Instead, rely on con
 Do not use abbreviations or acronyms in variable, parameter, or function names. Write names out in full so that code is immediately understandable without context. For example, use `control_rig` instead of `cr`, `skeleton` instead of `skel_obj`, `pose_bones` instead of `pbs`, `edit_bones` instead of `ebs`, `bone_data` instead of `bd`, `mesh_builder` instead of `bm`, `constraint` instead of `c`, `pose_bone` instead of `pb`, and so on. Single-letter variables are acceptable only as standard mathematical loop indices (`i`, `j`) or in short mathematical formulas where the meaning is self-evident from context.
 
 Do not include `Co-Authored-By` or any other attribution trailer in commit messages.
+
+Write commit messages as a single-line summary in the imperative mood (e.g. "Add hitbox control visibility toggle", not "Added..." or "Adds..."). Do not include a body.
