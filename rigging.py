@@ -1137,20 +1137,27 @@ def setup_control_rig_pose(
 
 
 def get_skinned_meshes(skeleton: bpy.types.Object) -> list[bpy.types.Object]:
-    """Return visible mesh objects that have an Armature modifier pointing at skeleton.
+    """Return visible mesh objects skinned to skeleton.
 
-    Hidden meshes (e.g. hitbox collision cubes) are excluded so they do not
-    skew adaptive control sizing computations.
+    Accepts both modifier-based and parent-based skinning. Hidden meshes
+    (e.g. hitbox collision cubes) are excluded so they do not skew adaptive
+    control sizing computations.
     """
-    return [
-        obj for obj in bpy.data.objects
-        if obj.type == "MESH"
-        and not obj.hide_viewport
-        and any(
+    bone_names = {bone.name for bone in skeleton.data.bones}
+    result = []
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or obj.hide_viewport:
+            continue
+        has_armature_modifier = any(
             mod.type == "ARMATURE" and mod.object == skeleton
             for mod in obj.modifiers
         )
-    ]
+        has_matching_vertex_groups = any(
+            vertex_group.name in bone_names for vertex_group in obj.vertex_groups
+        )
+        if has_armature_modifier or (obj.parent == skeleton and has_matching_vertex_groups):
+            result.append(obj)
+    return result
 
 
 def compute_mesh_bounding_extents(
