@@ -6,6 +6,7 @@ RULES
 3. Omit a system entirely if you cannot find its required bones.
 4. Paired limbs (left/right arm, left/right leg) must be fully symmetric — if a field is present on one side it must be identified on the other.
 5. Output ALL fingers found on ALL hands. Never skip or omit any finger.
+6. Lateral consistency: every bone assigned to a system must carry the same side indicator as the system. "Left" and "L" in a bone name both mean side "L". "Right" and "R" both mean side "R". A side "R" system must only contain bones that indicate right. A side "L" system must only contain bones that indicate left. Mixing sides within one system is always wrong.
 
 SYSTEMS
 
