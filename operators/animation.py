@@ -80,12 +80,12 @@ class ExportActionsOperator(bpy.types.Operator):
         "baking deform bone transforms and excluding control rig bones."
     )
 
-    format: bpy.props.EnumProperty(
-        name="Format",
-        description="Output file format.",
+    file_format: bpy.props.EnumProperty(
+        name="File Format",
+        description="The file format to export.",
         items=[
-            ("GLTF", "glTF", "Export to glTF Binary (.glb)"),
-            ("FBX", "FBX", "Export to FBX (.fbx)"),
+            ("GLTF", "glTF", "glTF"),
+            ("FBX", "FBX", "FBX"),
         ],
         default="GLTF",
     )  # pyright: ignore [reportInvalidTypeForm]
@@ -117,14 +117,14 @@ class ExportActionsOperator(bpy.types.Operator):
         if self.include_children:
             objects += misc.get_children(skeleton, recursive=True)
 
-        extension = ".glb" if self.format == "GLTF" else ".fbx"
+        extension = ".glb" if self.file_format == "GLTF" else ".fbx"
         filename = os.path.splitext(bpy.data.filepath)[0] + extension
         year = datetime.datetime.now().year
         misc.make_writable(filename)
         with VisibleContext(skeleton):
             with SelectionContext():
                 misc.select_objects(objects)
-                if self.format == "GLTF":
+                if self.file_format == "GLTF":
                     bpy.ops.export_scene.gltf(
                         filepath=filename,
                         check_existing=False,
