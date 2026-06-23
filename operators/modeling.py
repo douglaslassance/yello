@@ -105,7 +105,7 @@ class ExportMeshOperator(bpy.types.Operator):
         description="The file format to export.",
         items=[
             ("FBX", "FBX", "FBX"),
-            ("GLTF", "GLTF", "GLTF"),
+            ("GLTF", "glTF", "glTF"),
         ],
     )  # pyright: ignore [reportInvalidTypeForm]
 
@@ -179,7 +179,7 @@ class ExportMeshesOperator(bpy.types.Operator):
         description="The file format to export.",
         items=[
             ("FBX", "FBX", "FBX"),
-            ("GLTF", "GLTF", "GLTF"),
+            ("GLTF", "glTF", "glTF"),
         ],
     )  # pyright: ignore [reportInvalidTypeForm]
 
