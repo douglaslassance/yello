@@ -76,9 +76,19 @@ class ExportActionsOperator(bpy.types.Operator):
     bl_idname = "armature.export_actions"
     bl_label = "Export Actions"
     bl_description = (
-        "Export all actions on the selected armature to GLB, "
+        "Export all actions on the selected armature, "
         "baking deform bone transforms and excluding control rig bones."
     )
+
+    format: bpy.props.EnumProperty(
+        name="Format",
+        description="Output file format.",
+        items=[
+            ("GLTF", "glTF", "Export to glTF Binary (.glb)"),
+            ("FBX", "FBX", "Export to FBX (.fbx)"),
+        ],
+        default="GLTF",
+    )  # pyright: ignore [reportInvalidTypeForm]
 
     include_children: bpy.props.BoolProperty(
         name="Include Children",
@@ -107,31 +117,57 @@ class ExportActionsOperator(bpy.types.Operator):
         if self.include_children:
             objects += misc.get_children(skeleton, recursive=True)
 
-        filename = os.path.splitext(bpy.data.filepath)[0] + ".glb"
+        extension = ".glb" if self.format == "GLTF" else ".fbx"
+        filename = os.path.splitext(bpy.data.filepath)[0] + extension
         year = datetime.datetime.now().year
         misc.make_writable(filename)
         with VisibleContext(skeleton):
             with SelectionContext():
                 misc.select_objects(objects)
-                bpy.ops.export_scene.gltf(
-                    filepath=filename,
-                    check_existing=False,
-                    use_selection=True,
-                    use_visible=False,
-                    export_yup=True,
-                    export_reset_pose_bones=True,
-                    export_copyright=f"© {year} Douglas Lassance",
-                    export_format="GLB",
-                    export_all_vertex_colors=True,
-                    export_bake_animation=True,
-                    export_merge_animation="NONE",
-                    export_apply=True,
-                    export_animations=True,
-                    export_animation_mode="ACTIONS",
-                    export_def_bones=True,
-                    export_materials="NONE",
-                    will_save_settings=self.save_settings,
-                )
+                if self.format == "GLTF":
+                    bpy.ops.export_scene.gltf(
+                        filepath=filename,
+                        check_existing=False,
+                        use_selection=True,
+                        use_visible=False,
+                        export_yup=True,
+                        export_reset_pose_bones=True,
+                        export_copyright=f"© {year} Douglas Lassance",
+                        export_format="GLB",
+                        export_all_vertex_colors=True,
+                        export_bake_animation=True,
+                        export_merge_animation="NONE",
+                        export_apply=True,
+                        export_animations=True,
+                        export_animation_mode="ACTIONS",
+                        export_def_bones=True,
+                        export_materials="NONE",
+                        will_save_settings=self.save_settings,
+                    )
+                else:
+                    bpy.ops.export_scene.fbx(
+                        filepath=filename,
+                        check_existing=False,
+                        use_selection=True,
+                        use_visible=False,
+                        add_leaf_bones=False,
+                        apply_scale_options="FBX_SCALE_NONE",
+                        apply_unit_scale=True,
+                        armature_nodetype="NULL",
+                        axis_forward="-Z",
+                        axis_up="Y",
+                        bake_anim=True,
+                        bake_anim_use_all_actions=True,
+                        bake_anim_use_nla_strips=False,
+                        bake_space_transform=False,
+                        global_scale=1.0,
+                        mesh_smooth_type="FACE",
+                        object_types={"ARMATURE", "MESH"},
+                        primary_bone_axis="Y",
+                        secondary_bone_axis="X",
+                        use_armature_deform_only=True,
+                        use_space_transform=True,
+                    )
         return {"FINISHED"}
 
 
