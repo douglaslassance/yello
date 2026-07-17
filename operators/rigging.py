@@ -5,7 +5,6 @@ import re
 
 from .. import misc
 from ..contexts import CursorContext, ModeContext, SelectionContext
-from .. import ollama
 from .. import rigging
 
 
@@ -432,15 +431,10 @@ class BuildControlRigOperator(bpy.types.Operator):
         return rigging.classify_bones(bone_names, bone_parents)
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
-        self._ollama_reachable = ollama.reachable()
         return context.window_manager.invoke_props_dialog(self, width=360)
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
-        if not getattr(self, "_ollama_reachable", True):
-            layout.label(text="Ollama is offline.", icon="ERROR")
-            layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
-            return
         layout.prop(self, "mode")
         layout.prop(self, "apply_transform")
         rolls = layout.column()
@@ -450,21 +444,17 @@ class BuildControlRigOperator(bpy.types.Operator):
     def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
 
-        if not ollama.reachable():
-            self.report({"ERROR"}, f"Ollama is offline at {ollama.URL}.")
-            return {"CANCELLED"}
-
-        if self.apply_transform:
-            objects = [skeleton] + misc.get_children(skeleton, recursive=True)
-            for obj in objects:
-                misc.apply_transforms(obj)
-
         systems, message, raw = self._classify(skeleton)
         self.report({"INFO"}, f"Ollama: {raw}")
         if not systems:
             self.report({"ERROR"}, message)
             return {"CANCELLED"}
         self.report({"INFO"}, message)
+
+        if self.apply_transform:
+            objects = [skeleton] + misc.get_children(skeleton, recursive=True)
+            for obj in objects:
+                misc.apply_transforms(obj)
 
         findings = rigging.diagnose_skeleton(skeleton, systems)
         if self.mode == rigging.BUILD_MODE_STRICT and findings:
