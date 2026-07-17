@@ -9,6 +9,7 @@ RULES
 6. Lateral consistency: every bone assigned to a system must carry the same side indicator as the system. "Left" and "L" in a bone name both mean side "L". "Right" and "R" both mean side "R". A side "R" system must only contain bones that indicate right. A side "L" system must only contain bones that indicate left. Mixing sides within one system is always wrong.
 7. Every single-value role (pelvis, shoulder, upper_arm, forearm, hand, upper_leg, lower_leg, foot, toe, neck, head) is exactly ONE bone name string, never a list. Only vertebrae and finger chains are lists.
 8. Ignore non-deforming helper and terminal bones. Leaf/tip bones (names ending in "_end", "_tip", "End", "Tip") and aim/target helpers (e.g. "headfront", "eye_target") are never a role. For example, given "Head", "head_end", "headfront", the head role is "Head" alone.
+9. When a bone hierarchy is provided, order every chain by walking that hierarchy outward from the body, NOT by the numbers in the names. Vertebrae go from the bone nearest the pelvis up to the bone nearest the neck; finger chains go from the knuckle out to the tip. Some conventions number the spine from the chest downward, so the numbering can run opposite to anatomy. Trust the hierarchy, not the digits.
 
 SYSTEMS
 
