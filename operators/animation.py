@@ -2,6 +2,7 @@ import os
 import datetime
 
 import bpy
+from bpy_extras.io_utils import ImportHelper
 
 from ..contexts import SelectionContext, VisibleContext
 
@@ -90,6 +91,26 @@ class ExportActionsOperator(bpy.types.Operator):
         default="GLTF",
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    materials: bpy.props.EnumProperty(
+        name="Materials",
+        description="How to handle materials on exported meshes (ignored with FBX).",
+        items=[
+            ("EXPORT", "Export", "Export all materials used by included objects."),
+            (
+                "PLACEHOLDER",
+                "Placeholder",
+                "Do not export materials but keep material slots.",
+            ),
+            (
+                "VIEWPORT",
+                "Viewport",
+                "Export minimal materials as defined in viewport display.",
+            ),
+            ("NONE", "No Export", "Do not export materials."),
+        ],
+        default="EXPORT",
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     include_children: bpy.props.BoolProperty(
         name="Include Children",
         description="Include child objects of the armature.",
@@ -141,7 +162,7 @@ class ExportActionsOperator(bpy.types.Operator):
                         export_animations=True,
                         export_animation_mode="ACTIONS",
                         export_def_bones=True,
-                        export_materials="NONE",
+                        export_materials=self.materials,
                         will_save_settings=self.save_settings,
                     )
                 else:
@@ -171,6 +192,215 @@ class ExportActionsOperator(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class CleanupOrphanFcurvesOperator(bpy.types.Operator):
+    """Remove fcurves whose data paths do not resolve on the active armature.
+
+    Walks every action's slotted layer/strip/channelbag structure. For each
+    channelbag, an fcurve is considered orphan when its data path cannot be
+    resolved on the active armature (typically a bone that no longer exists).
+    Channelbags where no fcurve resolves are skipped entirely, since the action
+    targets a different rig.
+    """
+
+    bl_idname = "armature.cleanup_orphan_fcurves"
+    bl_label = "Cleanup Orphan Fcurves"
+    bl_description = (
+        "Remove fcurves on bones that do not exist on the active armature, "
+        "across all actions targeting this rig."
+    )
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        obj = context.object
+        return obj is not None and obj.type == "ARMATURE"
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        skeleton = context.object
+        path_resolve = skeleton.path_resolve
+        removed_total = 0
+        affected_actions = 0
+        for action in bpy.data.actions:
+            removed_in_action = 0
+            for layer in action.layers:
+                for strip in layer.strips:
+                    if not hasattr(strip, "channelbags"):
+                        continue
+                    for channelbag in strip.channelbags:
+                        if not channelbag.fcurves:
+                            continue
+                        orphans = []
+                        valid_count = 0
+                        for fcurve in channelbag.fcurves:
+                            path = fcurve.data_path
+                            if fcurve.array_index:
+                                path = f"{path}[{fcurve.array_index}]"
+                            try:
+                                path_resolve(path)
+                            except ValueError:
+                                orphans.append(fcurve)
+                            else:
+                                valid_count += 1
+                        if valid_count == 0:
+                            continue
+                        for fcurve in orphans:
+                            channelbag.fcurves.remove(fcurve)
+                            removed_in_action += 1
+            if removed_in_action:
+                affected_actions += 1
+                removed_total += removed_in_action
+        self.report(
+            {"INFO"},
+            f"Removed {removed_total} orphan fcurve(s) "
+            f"from {affected_actions} action(s).",
+        )
+        return {"FINISHED"}
+
+
+class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
+    """Import animation from a file and retarget it onto the active control rig.
+
+    The active object must be a control rig. The source skeleton is classified
+    with Ollama, its scale is normalized to the target, and every source action
+    is baked onto the control bones through temporary world-space constraints.
+    The imported source objects and actions are removed afterwards, leaving only
+    the baked actions on the control rig.
+    """
+
+    bl_idname = "armature.import_animation"
+    bl_label = "Import Animation"
+    bl_description = (
+        "Import an FBX, glTF, or blend file and retarget all of its actions onto "
+        "the active control rig. Bones are matched by role, the source is scaled "
+        "to fit, and each action is baked onto the controls through temporary "
+        "constraints. Use this to bring in external animation from another rig."
+    )
+    bl_options = {"REGISTER", "UNDO"}
+
+    filename_ext = ".fbx"
+    filter_glob: bpy.props.StringProperty(
+        default="*.fbx;*.glb;*.gltf;*.blend",
+        options={"HIDDEN"},
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        obj = context.object
+        if obj is None or obj.type != "ARMATURE" or obj.mode != "OBJECT":
+            return False
+        return any(rigging.CONTROL_SUFFIX in bone.name for bone in obj.data.bones)
+
+    def draw(self, context: bpy.types.Context) -> None:
+        if not ollama.reachable():
+            self.layout.label(text="Ollama is not running.", icon="ERROR")
+
+    def _cleanup(
+        self,
+        imported: list[bpy.types.Object],
+        source_actions: list[bpy.types.Action],
+    ) -> None:
+        for obj in imported:
+            if obj.name in bpy.data.objects:
+                bpy.data.objects.remove(obj, do_unlink=True)
+        for action in source_actions:
+            if action.name in bpy.data.actions:
+                bpy.data.actions.remove(action)
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        target = context.object
+        if not ollama.reachable():
+            self.report({"ERROR"}, "Ollama is not running.")
+            return {"CANCELLED"}
+
+        extension = os.path.splitext(self.filepath)[1].lower()
+        existing_actions = set(bpy.data.actions)
+        if extension == ".fbx":
+            imported = io.import_fbx(self.filepath)
+        elif extension in (".glb", ".gltf"):
+            imported = io.import_gltf(self.filepath)
+        elif extension == ".blend":
+            imported = io.append_blend(self.filepath)
+        else:
+            self.report({"ERROR"}, f"Unsupported file type: {extension}")
+            return {"CANCELLED"}
+
+        source = next((obj for obj in imported if obj.type == "ARMATURE"), None)
+        source_actions = [a for a in bpy.data.actions if a not in existing_actions]
+
+        if source is None:
+            self._cleanup(imported, source_actions)
+            self.report({"ERROR"}, "No armature found in the imported file.")
+            return {"CANCELLED"}
+
+        source_bone_names = [bone.name for bone in source.data.bones]
+        systems, message, raw = rigging.classify_bones(source_bone_names)
+        self.report({"INFO"}, f"Ollama: {raw}")
+        if not systems:
+            self._cleanup(imported, source_actions)
+            self.report({"ERROR"}, message)
+            return {"CANCELLED"}
+
+        constrained = rigging.bind_controls_to_source(target, source, systems)
+        if not constrained:
+            self._cleanup(imported, source_actions)
+            self.report({"ERROR"}, "No matching control bones to retarget.")
+            return {"CANCELLED"}
+
+        context.view_layer.objects.active = target
+        bpy.ops.object.mode_set(mode="POSE")
+        for bone in target.data.bones:
+            bone.select = bone.name in constrained
+
+        if source.animation_data is None:
+            source.animation_data_create()
+
+        actions_to_bake = source_actions or (
+            [source.animation_data.action] if source.animation_data.action else []
+        )
+        first_target_action = None
+        baked = 0
+        for source_action in actions_to_bake:
+            if source_action is None:
+                continue
+            animation.assign_action(source, source_action)
+
+            frame_start, frame_end = source_action.frame_range
+            context.scene.frame_start = int(frame_start)
+            context.scene.frame_end = int(frame_end)
+
+            if target.animation_data is None:
+                target.animation_data_create()
+            target.animation_data.action = None
+            bpy.ops.nla.bake(
+                frame_start=int(frame_start),
+                frame_end=int(frame_end),
+                only_selected=True,
+                visual_keying=True,
+                clear_constraints=False,
+                clear_parents=False,
+                use_current_action=False,
+                bake_types={"POSE"},
+            )
+            new_action = target.animation_data.action
+            if new_action is not None:
+                new_action.name = source_action.name
+                new_action.use_fake_user = True
+                baked += 1
+                if first_target_action is None:
+                    first_target_action = new_action
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+        rigging.remove_retarget_constraints(target)
+        self._cleanup(imported, source_actions)
+
+        if first_target_action is not None:
+            animation.assign_action(target, first_target_action)
+
+        context.view_layer.objects.active = target
+        self.report({"INFO"}, f"Imported and retargeted {baked} action(s).")
+        return {"FINISHED"}
+
+
 class ActionSelectionItem(bpy.types.PropertyGroup):
     """A single action entry in the transfer checklist."""
 
@@ -191,7 +421,11 @@ class TransferAnimationOperator(bpy.types.Operator):
     bl_idname = "armature.transfer_animation"
     bl_label = "Transfer Animation"
     bl_description = (
-        "Transfer actions to the selected armatures using Ollama-based bone matching."
+        "Copy actions from the file onto the selected armatures by matching bones "
+        "and rewriting fcurves, without baking or scaling. Matches control bones "
+        "when present, otherwise deform bones. Best for rigs that already share a "
+        "rest pose. To retarget external animation onto a control rig, use Import "
+        "Animation instead."
     )
 
     action_items: bpy.props.CollectionProperty(
@@ -276,14 +510,7 @@ class TransferAnimationOperator(bpy.types.Operator):
                     first_target_action = target_action
 
             if first_target_action is not None:
-                if target.animation_data is None:
-                    target.animation_data_create()
-                target.animation_data.action = first_target_action
-                if (
-                    hasattr(target.animation_data, "action_slot")
-                    and first_target_action.slots
-                ):
-                    target.animation_data.action_slot = first_target_action.slots[0]
+                animation.assign_action(target, first_target_action)
 
         self.report(
             {"INFO"},
