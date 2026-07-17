@@ -7,11 +7,13 @@ RULES
 4. Paired limbs (left/right arm, left/right leg) must be fully symmetric — if a field is present on one side it must be identified on the other.
 5. Output ALL fingers found on ALL hands. Never skip or omit any finger.
 6. Lateral consistency: every bone assigned to a system must carry the same side indicator as the system. "Left" and "L" in a bone name both mean side "L". "Right" and "R" both mean side "R". A side "R" system must only contain bones that indicate right. A side "L" system must only contain bones that indicate left. Mixing sides within one system is always wrong.
+7. Every single-value role (pelvis, shoulder, upper_arm, forearm, hand, upper_leg, lower_leg, foot, toe, neck, head) is exactly ONE bone name string, never a list. Only vertebrae and finger chains are lists.
+8. Ignore non-deforming helper and terminal bones. Leaf/tip bones (names ending in "_end", "_tip", "End", "Tip") and aim/target helpers (e.g. "headfront", "eye_target") are never a role. For example, given "Head", "head_end", "headfront", the head role is "Head" alone.
 
 SYSTEMS
 
 spine
-  Required: vertebrae — ordered list of bones from pelvis to chest, low to high. Do NOT include neck or head.
+  Required: vertebrae — ordered list of the spine bones between the pelvis and the neck, low to high. Do NOT include the pelvis, neck, or head.
   Optional: pelvis — the root hip bone that sits below the spine.
 
 arm
@@ -49,4 +51,13 @@ toe        = toe, toebase, ball, ball of foot
 vertebrae  = spine, back, torso bones between pelvis and neck
 
 OUTPUT FORMAT
-{"systems": [...]}
+Return {"systems": [ ... ]} where every element is a flat object carrying an explicit "type" field. Never use the system name as a key. Use exactly these shapes:
+
+spine:  {"type": "spine", "pelvis": "<bone or null>", "vertebrae": ["<bone>", ...]}
+arm:    {"type": "arm", "side": "L or R", "parent": "<bone or null>", "shoulder": "<bone or null>", "upper_arm": "<bone>", "forearm": "<bone>", "hand": "<bone>"}
+leg:    {"type": "leg", "side": "L or R", "parent": "<bone or null>", "upper_leg": "<bone>", "lower_leg": "<bone>", "foot": "<bone>", "toe": "<bone or null>"}
+head:   {"type": "head", "parent": "<bone or null>", "neck": "<bone or null>", "head": "<bone>"}
+finger: {"type": "finger", "name": "<thumb, index, middle, ring, pinky, or finger_1…>", "side": "L or R", "parent": "<bone or null>", "chain": ["<bone>", ...]}
+
+Correct: {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]}
+Wrong:   {"spine": {"pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]}}
