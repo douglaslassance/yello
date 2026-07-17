@@ -416,6 +416,16 @@ class BuildControlRigOperator(bpy.types.Operator):
         default=rigging.BUILD_MODE_STRICT,
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    reclassify: bpy.props.BoolProperty(
+        name="Re-classify Bones",
+        description=(
+            "Classify the bones again with Ollama instead of reusing the result "
+            "stored on the armature from a previous build. Enable this after adding, "
+            "removing, or renaming bones"
+        ),
+        default=False,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
@@ -437,6 +447,8 @@ class BuildControlRigOperator(bpy.types.Operator):
         layout = self.layout
         layout.prop(self, "mode")
         layout.prop(self, "apply_transform")
+        if rigging.load_systems(context.object) is not None:
+            layout.prop(self, "reclassify")
         rolls = layout.column()
         rolls.enabled = self.mode == rigging.BUILD_MODE_STRICT
         rolls.prop(self, "minimize_bone_rolls")
@@ -444,12 +456,16 @@ class BuildControlRigOperator(bpy.types.Operator):
     def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
 
-        systems, message, raw = self._classify(skeleton)
-        self.report({"INFO"}, f"Ollama: {raw}")
-        if not systems:
-            self.report({"ERROR"}, message)
-            return {"CANCELLED"}
-        self.report({"INFO"}, message)
+        systems = None if self.reclassify else rigging.load_systems(skeleton)
+        if systems is None:
+            systems, message, raw = self._classify(skeleton)
+            self.report({"INFO"}, f"Ollama: {raw}")
+            if not systems:
+                self.report({"ERROR"}, message)
+                return {"CANCELLED"}
+            self.report({"INFO"}, message)
+        else:
+            self.report({"INFO"}, "Reusing stored bone classification.")
 
         if self.apply_transform:
             objects = [skeleton] + misc.get_children(skeleton, recursive=True)
