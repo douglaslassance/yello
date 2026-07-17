@@ -54,12 +54,13 @@ class YELLO_PT_animation(Panel):
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         col = layout.column(align=True)
+        col.operator("armature.import_animation", icon="IMPORT")
+        col.operator("armature.transfer_animation", icon="ANIM_DATA")
+        col.separator()
         col.operator("object.export_animation", icon="ONIONSKIN_ON")
         col.operator("object.export_animated_mesh", icon="MOD_SOFT")
         col.operator("armature.export_actions", icon="RENDER_ANIMATION")
         col.separator()
-        col.operator("armature.import_animation", icon="IMPORT")
-        col.operator("armature.transfer_animation", icon="ANIM_DATA")
         col.operator("armature.cleanup_orphan_fcurves", icon="BRUSH_DATA")
 
 
