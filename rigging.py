@@ -61,6 +61,21 @@ def classify_bones(bone_names: list[str]) -> tuple[list[SystemDict] | None, str,
         return None, f"Ollama error: {exc}", ""
 
 
+def _normalize_system_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Return a system object flattened to carry an explicit "type" field.
+
+    Some Ollama responses nest the fields under the system name as the sole key,
+    e.g. {"spine": {"vertebrae": [...]}} instead of {"type": "spine", ...}. Left
+    unflattened these carry no "type" and every system would be silently dropped.
+    """
+    if "type" in entry or len(entry) != 1:
+        return entry
+    ((only_key, only_value),) = entry.items()
+    if isinstance(only_value, dict):
+        return {"type": only_key, **only_value}
+    return entry
+
+
 def _parse_systems(
     data: dict[str, Any], bone_names: list[str]
 ) -> list[SystemDict] | None:
@@ -68,6 +83,8 @@ def _parse_systems(
     lookup = {n.strip().lower(): n for n in bone_names}
 
     def resolve(v):
+        if isinstance(v, list):
+            return next((r for r in (resolve(item) for item in v) if r), None)
         return lookup.get(v.strip().lower()) if isinstance(v, str) else None
 
     def resolve_chain(lst):
@@ -79,6 +96,7 @@ def _parse_systems(
     for entry in data.get("systems") or []:
         if not isinstance(entry, dict):
             continue
+        entry = _normalize_system_entry(entry)
         system_type = entry.get("type")
 
         if system_type == "spine":
