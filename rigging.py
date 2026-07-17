@@ -225,7 +225,81 @@ def _parse_systems(
 
 
 CONTROL_SUFFIX: str = "_Control"
+MECHANISM_SUFFIX: str = "_Mechanism"
 CONTROL_RIG_CONSTRAINT_NAME: str = "Control Rig"
+RETARGET_CONSTRAINT_NAME: str = "Retarget"
+SYSTEMS_PROPERTY_NAME: str = "yello_systems"
+
+BUILD_MODE_STRICT: str = "STRICT"
+BUILD_MODE_LOOSE: str = "LOOSE"
+
+PELVIS_DOWN_MAX_ANGLE: float = 45.0
+FOOT_HORIZONTAL_MAX_ANGLE: float = 45.0
+
+
+def diagnose_skeleton(
+    skeleton: bpy.types.Object, systems: list[SystemDict]
+) -> list[str]:
+    """Return findings where the skeleton deviates from the orientation the matching build assumes.
+
+    These are the assumptions that, left unchecked, produce a silently broken
+    rig: for example the hip control drives the pelvis from a downward
+    orientation, so a pelvis that does not point down snaps the rest pose.
+    Strict mode reports these and lets the user decide; loose mode reconciles
+    the same deviations with offset bones instead.
+    """
+    findings: list[str] = []
+    bones = skeleton.data.bones
+    down = mathutils.Vector((0.0, 0.0, -1.0))
+    for system in systems:
+        system_type = system["type"]
+        if system_type == "spine":
+            pelvis_name = system.get("pelvis")
+            bone = bones.get(pelvis_name) if pelvis_name else None
+            if bone is not None:
+                direction = bone.tail_local - bone.head_local
+                if direction.length > 1e-6:
+                    angle = math.degrees(direction.normalized().angle(down))
+                    if angle > PELVIS_DOWN_MAX_ANGLE:
+                        findings.append(
+                            f"Pelvis '{pelvis_name}' points {angle:.0f} degrees from straight down; "
+                            "the hip control drives it from a downward orientation, so the rest pose will break."
+                        )
+        elif system_type == "leg":
+            foot_name = system.get("foot")
+            bone = bones.get(foot_name) if foot_name else None
+            if bone is not None:
+                direction = bone.tail_local - bone.head_local
+                if direction.length > 1e-6:
+                    angle_from_horizontal = math.degrees(
+                        math.asin(min(1.0, abs(direction.normalized().z)))
+                    )
+                    if angle_from_horizontal > FOOT_HORIZONTAL_MAX_ANGLE:
+                        findings.append(
+                            f"Foot '{foot_name}' is {angle_from_horizontal:.0f} degrees from horizontal; "
+                            "the reverse-foot setup assumes a roughly flat foot."
+                        )
+    return findings
+
+
+def store_systems(skeleton: bpy.types.Object, systems: list[SystemDict]) -> None:
+    """Persist the classified rig systems on the armature data as JSON.
+
+    Storing the classification lets animation retargeting reuse the rig's
+    structure without re-running the bone classifier on the target.
+    """
+    skeleton.data[SYSTEMS_PROPERTY_NAME] = json.dumps(systems)
+
+
+def load_systems(skeleton: bpy.types.Object) -> list[SystemDict] | None:
+    """Return the rig systems previously stored on the armature, or None."""
+    raw = skeleton.data.get(SYSTEMS_PROPERTY_NAME)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
 
 
 def match_bones(
@@ -644,6 +718,7 @@ def _build_spine_system(
     system: SystemDict,
     bone_data: BoneDataDict,
     root_edit_bone: bpy.types.EditBone,
+    mode: str = BUILD_MODE_STRICT,
 ) -> tuple[
     bpy.types.EditBone | None, bpy.types.EditBone, dict[str, bpy.types.EditBone]
 ]:
@@ -651,7 +726,12 @@ def _build_spine_system(
 
     Creates Pelvis and Hips at the base and a free Chest at the top.
     The deform vertebrae are driven by a Spline IK constraint added directly on the
-    skeleton side in wire_deform_constraints — no mechanism bones are needed here.
+    skeleton side in wire_deform_constraints, so no mechanism bones are needed here.
+
+    In loose mode a hidden Hips_Mechanism bone is created at the pelvis's true
+    rest orientation and parented to Hips_Control, so the pelvis deform can copy
+    it without snapping to the hip control's downward orientation. This keeps the
+    source skeleton untouched for animation interchange.
     Returns (hips_edit_bone, chest_edit_bone, deform_to_ctrl).
     """
     deform_to_ctrl = {}
@@ -683,6 +763,18 @@ def _build_spine_system(
             False,
         )
         deform_to_ctrl[system["pelvis"]] = pelvis_edit_bone
+
+        if mode == BUILD_MODE_LOOSE:
+            pelvis_bone = bone_data[system["pelvis"]]
+            _new_edit_bone(
+                edit_bones,
+                f"Hips{MECHANISM_SUFFIX}",
+                pelvis_bone["head"],
+                pelvis_bone["tail"],
+                pelvis_bone["roll"],
+                hips_edit_bone,
+                False,
+            )
 
     chain = [n for n in (system.get("vertebrae") or []) if n in bone_data]
     chest_edit_bone = hips_edit_bone or pelvis_edit_bone or root_edit_bone
@@ -903,6 +995,7 @@ def build_control_bones(
     armature_data: bpy.types.Armature,
     systems: list[SystemDict],
     bone_data: BoneDataDict,
+    mode: str = BUILD_MODE_STRICT,
 ) -> None:
     """Build all control bones on the armature from the classified systems."""
     edit_bones = armature_data.edit_bones
@@ -921,7 +1014,7 @@ def build_control_bones(
     for system in systems:
         if system["type"] == "spine":
             hips_edit_bone, chest_edit_bone, deform_to_ctrl = _build_spine_system(
-                edit_bones, system, bone_data, root_edit_bone
+                edit_bones, system, bone_data, root_edit_bone, mode
             )
             break
 
@@ -1351,6 +1444,194 @@ def _build_control_to_deform_map(systems: list[SystemDict]) -> dict[str, str]:
     return mapping
 
 
+def _rest_bone_world(
+    armature: bpy.types.Object, bone_name: str | None
+) -> tuple[mathutils.Vector, mathutils.Vector] | None:
+    """Return the rest-pose world head and tail of a bone, or None if missing."""
+    if bone_name is None:
+        return None
+    bone = armature.data.bones.get(bone_name)
+    if bone is None:
+        return None
+    matrix = armature.matrix_world
+    return matrix @ bone.head_local, matrix @ bone.tail_local
+
+
+def _measure_leg_length(
+    armature: bpy.types.Object, systems: list[SystemDict] | None
+) -> float | None:
+    """Return the rest-pose upper plus lower leg length in world units.
+
+    Leg length is a proportion-stable measure of a character's overall size,
+    used to normalize the source skeleton's scale onto the target rig.
+    """
+    for system in systems or []:
+        if system.get("type") != "leg":
+            continue
+        total = 0.0
+        for key in ("upper_leg", "lower_leg"):
+            endpoints = _rest_bone_world(armature, system.get(key))
+            if endpoints:
+                total += (endpoints[1] - endpoints[0]).length
+        if total > 0.0:
+            return total
+    return None
+
+
+def _create_source_pole_bones(
+    source: bpy.types.Object, source_systems: list[SystemDict]
+) -> dict[str, str]:
+    """Create rest-positioned pole helper bones on the source armature.
+
+    Each helper sits at the knee's pole position and is parented to the knee
+    bone so it moves rigidly with the leg. Returns a mapping of side to bone
+    name. The source armature is deleted after retargeting, so these helpers
+    are temporary.
+    """
+    computations = {}
+    for system in source_systems:
+        if system.get("type") != "leg":
+            continue
+        upper = _rest_bone_world(source, system.get("upper_leg"))
+        lower = _rest_bone_world(source, system.get("lower_leg"))
+        if not upper or not lower:
+            continue
+        pole_world = _calc_pole_pos(upper[0], lower[0], lower[1])
+        computations[system.get("side", "L")] = (pole_world, system.get("lower_leg"))
+    if not computations:
+        return {}
+
+    inverse = source.matrix_world.inverted()
+    previous_active = bpy.context.view_layer.objects.active
+    bpy.context.view_layer.objects.active = source
+    bpy.ops.object.mode_set(mode="EDIT")
+    poles = {}
+    edit_bones = source.data.edit_bones
+    for side, (pole_world, knee_bone_name) in computations.items():
+        head_local = inverse @ pole_world
+        name = f"Retarget_Pole.{side}"
+        edit_bone = edit_bones.new(name)
+        edit_bone.head = head_local
+        edit_bone.tail = head_local + mathutils.Vector((0.0, 0.0, 0.1))
+        edit_bone.use_deform = False
+        knee = edit_bones.get(knee_bone_name)
+        if knee is not None:
+            edit_bone.parent = knee
+        poles[side] = name
+    bpy.ops.object.mode_set(mode="OBJECT")
+    if previous_active is not None:
+        bpy.context.view_layer.objects.active = previous_active
+    return poles
+
+
+def _add_retarget_constraint(
+    target: bpy.types.Object,
+    control_name: str,
+    source: bpy.types.Object,
+    source_bone: str | None,
+    location: bool = False,
+    rotation: bool = True,
+) -> bool:
+    """Constrain a target control bone to a source bone for baking.
+
+    Rotation is copied for FK controls (proportion independent); location is
+    copied for the root and IK targets. Constraints are world space and tagged
+    with RETARGET_CONSTRAINT_NAME so they can be removed after baking.
+    """
+    if source_bone is None or control_name not in target.pose.bones:
+        return False
+    if source_bone not in source.pose.bones:
+        return False
+    pose_bone = target.pose.bones[control_name]
+    if location:
+        constraint = pose_bone.constraints.new("COPY_LOCATION")
+        constraint.name = RETARGET_CONSTRAINT_NAME
+        constraint.target = source
+        constraint.subtarget = source_bone
+        constraint.target_space, constraint.owner_space = "WORLD", "WORLD"
+    if rotation:
+        constraint = pose_bone.constraints.new("COPY_ROTATION")
+        constraint.name = RETARGET_CONSTRAINT_NAME
+        constraint.target = source
+        constraint.subtarget = source_bone
+        constraint.target_space, constraint.owner_space = "WORLD", "WORLD"
+    return True
+
+
+def bind_controls_to_source(
+    target: bpy.types.Object,
+    source: bpy.types.Object,
+    source_systems: list[SystemDict],
+) -> list[str]:
+    """Constrain the target's control bones to the classified source skeleton.
+
+    The source is uniformly scaled to match the target's leg length so root and
+    foot positions line up. FK controls copy rotation only, which is
+    proportion independent; the root and IK targets copy location as well.
+    Returns the names of the control bones that were constrained.
+    """
+    target_systems = load_systems(target)
+    source_length = _measure_leg_length(source, source_systems)
+    target_length = _measure_leg_length(target, target_systems)
+    if source_length and target_length:
+        scale_factor = target_length / source_length
+        source.scale = tuple(component * scale_factor for component in source.scale)
+        bpy.context.view_layer.update()
+
+    pole_bones = _create_source_pole_bones(source, source_systems)
+    constrained = []
+
+    def bind(control_name, source_bone, location=False, rotation=True):
+        if _add_retarget_constraint(
+            target, control_name, source, source_bone, location, rotation
+        ):
+            constrained.append(control_name)
+
+    for system in source_systems:
+        system_type = system.get("type")
+        side = system.get("side", "L")
+        if system_type == "spine":
+            bind("Hips_Control", system.get("pelvis"), location=True, rotation=True)
+            vertebrae = system.get("vertebrae") or []
+            if vertebrae:
+                bind("Chest_Control", vertebrae[-1])
+        elif system_type == "arm":
+            bind(f"Shoulder_Control.{side}", system.get("shoulder"))
+            bind(f"UpperArm_Control.{side}", system.get("upper_arm"))
+            bind(f"Forearm_Control.{side}", system.get("forearm"))
+            bind(f"Hand_Control.{side}", system.get("hand"))
+        elif system_type == "leg":
+            bind(
+                f"IK_Target_Control.{side}",
+                system.get("foot"),
+                location=True,
+                rotation=True,
+            )
+            bind(f"Toe_Control.{side}", system.get("toe"))
+            bind(
+                f"Leg_Pole_Control.{side}",
+                pole_bones.get(side),
+                location=True,
+                rotation=False,
+            )
+        elif system_type == "head":
+            bind("Neck_Control", system.get("neck"))
+            bind("Head_Control", system.get("head"))
+        elif system_type == "finger":
+            for index, source_bone in enumerate(system.get("chain") or []):
+                bind(_finger_ctrl_name(system, index), source_bone)
+
+    return constrained
+
+
+def remove_retarget_constraints(target: bpy.types.Object) -> None:
+    """Remove all retarget constraints previously added to control bones."""
+    for pose_bone in target.pose.bones:
+        for constraint in list(pose_bone.constraints):
+            if constraint.name == RETARGET_CONSTRAINT_NAME:
+                pose_bone.constraints.remove(constraint)
+
+
 def apply_adaptive_control_scales(
     skeleton: bpy.types.Object,
     systems: list[SystemDict],
@@ -1509,15 +1790,29 @@ def _add_copy_transforms(
 
 
 def wire_deform_constraints(
-    armature: bpy.types.Object, systems: list[SystemDict]
+    armature: bpy.types.Object,
+    systems: list[SystemDict],
+    mode: str = BUILD_MODE_STRICT,
 ) -> None:
-    """Add Copy Transforms constraints on the skeleton wired to each control bone."""
+    """Add Copy Transforms constraints on the skeleton wired to each control bone.
+
+    In loose mode the pelvis is wired to the Hips_Mechanism offset bone (when it
+    exists) instead of Hips_Control directly, so its rest orientation is
+    preserved rather than snapped to the hip control's downward orientation.
+    """
     armature.data.pose_position = "POSE"
     for system in systems:
         system_type = system["type"]
         if system_type == "spine":
             if system.get("pelvis"):
-                _add_copy_transforms(armature, system["pelvis"], "Hips_Control")
+                hips_mechanism = f"Hips{MECHANISM_SUFFIX}"
+                pelvis_control = (
+                    hips_mechanism
+                    if mode == BUILD_MODE_LOOSE
+                    and hips_mechanism in armature.pose.bones
+                    else "Hips_Control"
+                )
+                _add_copy_transforms(armature, system["pelvis"], pelvis_control)
             vertebrae = system.get("vertebrae") or []
             if vertebrae:
                 curve_obj = bpy.data.objects.get("Spine_Curve")
@@ -1583,7 +1878,11 @@ def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
     Should be called in POSE mode. Internally switches to EDIT mode to delete bones,
     then returns to OBJECT mode.
     """
-    control_bone_names = {b.name for b in skeleton.data.bones if "_Control" in b.name}
+    control_bone_names = {
+        b.name
+        for b in skeleton.data.bones
+        if CONTROL_SUFFIX in b.name or MECHANISM_SUFFIX in b.name
+    }
     if not control_bone_names:
         return
     for pose_bone in skeleton.pose.bones:
