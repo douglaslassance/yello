@@ -9,23 +9,6 @@ from .. import ollama
 from .. import rigging
 
 
-def _wrap_finding(text: str, width: int = 55) -> list[str]:
-    """Wrap a diagnostic message into lines that fit the build dialog width."""
-    words = text.split()
-    lines = []
-    current = ""
-    for word in words:
-        candidate = f"{current} {word}".strip()
-        if len(candidate) > width and current:
-            lines.append(current)
-            current = word
-        else:
-            current = candidate
-    if current:
-        lines.append(current)
-    return lines
-
-
 def _minimize_bone_roll(bone: bpy.types.EditBone) -> None:
     """Snap the bone's roll to the nearest 90° increment closest to zero."""
     roll = bone.roll
@@ -449,22 +432,12 @@ class BuildControlRigOperator(bpy.types.Operator):
         return rigging.classify_bones(bone_names, bone_parents)
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
-        self._interactive = True
-        self._systems = None
-        self._findings = []
-        self._classify_error = ""
-        if ollama.reachable():
-            systems, message, _ = self._classify(context.object)
-            if systems:
-                self._systems = systems
-                self._findings = rigging.diagnose_skeleton(context.object, systems)
-            else:
-                self._classify_error = message
+        self._ollama_reachable = ollama.reachable()
         return context.window_manager.invoke_props_dialog(self, width=360)
 
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
-        if not ollama.reachable():
+        if not getattr(self, "_ollama_reachable", True):
             layout.label(text="Ollama is offline.", icon="ERROR")
             layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
             return
@@ -474,31 +447,11 @@ class BuildControlRigOperator(bpy.types.Operator):
         rolls.enabled = self.mode == rigging.BUILD_MODE_STRICT
         rolls.prop(self, "minimize_bone_rolls")
 
-        classify_error = getattr(self, "_classify_error", "")
-        findings = getattr(self, "_findings", [])
-        if classify_error:
-            box = layout.box()
-            box.label(text="Classification failed:", icon="ERROR")
-            box.label(text=classify_error[:80])
-            return
-        if findings:
-            box = layout.box()
-            if self.mode == rigging.BUILD_MODE_STRICT:
-                box.label(text="Skeleton does not match convention:", icon="ERROR")
-            else:
-                box.label(
-                    text="Reconciled with offset bones (kept intact):", icon="INFO"
-                )
-            for finding in findings:
-                for line in _wrap_finding(finding):
-                    box.label(text=line)
-            if self.mode == rigging.BUILD_MODE_STRICT:
-                box.label(text="Confirm to build anyway, or cancel.")
-
     def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
 
         if not ollama.reachable():
+            self.report({"ERROR"}, f"Ollama is offline at {ollama.URL}.")
             return {"CANCELLED"}
 
         if self.apply_transform:
@@ -506,27 +459,23 @@ class BuildControlRigOperator(bpy.types.Operator):
             for obj in objects:
                 misc.apply_transforms(obj)
 
-        systems = getattr(self, "_systems", None)
-        findings = getattr(self, "_findings", [])
-        if systems is None:
-            systems, message, raw = self._classify(skeleton)
-            self.report({"INFO"}, f"Ollama: {raw}")
-            if not systems:
-                self.report({"ERROR"}, message)
-                return {"CANCELLED"}
-            self.report({"INFO"}, message)
-            findings = rigging.diagnose_skeleton(skeleton, systems)
+        systems, message, raw = self._classify(skeleton)
+        self.report({"INFO"}, f"Ollama: {raw}")
+        if not systems:
+            self.report({"ERROR"}, message)
+            return {"CANCELLED"}
+        self.report({"INFO"}, message)
 
+        findings = rigging.diagnose_skeleton(skeleton, systems)
         if self.mode == rigging.BUILD_MODE_STRICT and findings:
             for finding in findings:
                 self.report({"WARNING"}, finding)
-            if not getattr(self, "_interactive", False):
-                self.report(
-                    {"ERROR"},
-                    "Skeleton does not match Yello convention (strict mode). "
-                    "Fix the reported issues or use Loose mode.",
-                )
-                return {"CANCELLED"}
+            self.report(
+                {"ERROR"},
+                "Skeleton does not match Yello convention (strict mode). "
+                "Fix the reported issues or use Loose mode.",
+            )
+            return {"CANCELLED"}
 
         all_bone_names = rigging.extract_bone_names(systems)
 
