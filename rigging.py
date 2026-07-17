@@ -24,15 +24,61 @@ def _load_prompt(filename: str) -> str:
     return (_PROMPTS_DIR / filename).read_text(encoding="utf-8")
 
 
-def classify_bones(bone_names: list[str]) -> tuple[list[SystemDict] | None, str, str]:
+def _format_hierarchy(
+    bone_names: list[str], bone_parents: dict[str, str | None]
+) -> str:
+    """Render the bone hierarchy as an indented tree, children under their parent.
+
+    Deeper indentation means further from the root, so the classifier can order
+    chains by anatomy instead of guessing from the digits in bone names (some
+    conventions number the spine from the chest down, not the pelvis up).
+    """
+    name_set = set(bone_names)
+    children: dict[str, list[str]] = {}
+    roots: list[str] = []
+    for name in bone_names:
+        parent = bone_parents.get(name)
+        if parent and parent in name_set:
+            children.setdefault(parent, []).append(name)
+        else:
+            roots.append(name)
+    lines: list[str] = []
+
+    def walk(node: str, depth: int) -> None:
+        lines.append(f"{'  ' * depth}- {node}")
+        for child in children.get(node, []):
+            walk(child, depth + 1)
+
+    for root in roots:
+        walk(root, 0)
+    return "\n".join(lines)
+
+
+def classify_bones(
+    bone_names: list[str],
+    bone_parents: dict[str, str | None] | None = None,
+) -> tuple[list[SystemDict] | None, str, str]:
     """Ask Ollama to classify bone names into rig systems.
+
+    bone_parents maps each bone name to its parent's name (or None). When given,
+    the hierarchy is sent to the classifier so it can order chains by anatomy
+    rather than by the numbering in the names.
 
     Returns (systems, message, raw) where systems is a list of system dicts,
     or (None, error_message, raw).
     """
     bone_list = "\n".join(f"  - {n}" for n in sorted(bone_names))
+    hierarchy = (
+        _format_hierarchy(bone_names, bone_parents)
+        if bone_parents
+        else "(not provided)"
+    )
     system = _load_prompt("classify_bones_system.md")
-    user = _load_prompt("classify_bones_user.md").replace("{bone_list}", bone_list)
+    user = (
+        _load_prompt("classify_bones_user.md")
+        .replace("{bone_list}", bone_list)
+        .replace("{hierarchy}", hierarchy)
+    )
     logger.info("classify_bones user prompt:\n%s", user)
     try:
         raw = ollama.chat(
