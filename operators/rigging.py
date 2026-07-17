@@ -9,6 +9,23 @@ from .. import ollama
 from .. import rigging
 
 
+def _wrap_finding(text: str, width: int = 55) -> list[str]:
+    """Wrap a diagnostic message into lines that fit the build dialog width."""
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if len(candidate) > width and current:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines
+
+
 def _minimize_bone_roll(bone: bpy.types.EditBone) -> None:
     """Snap the bone's roll to the nearest 90° increment closest to zero."""
     roll = bone.roll
@@ -363,20 +380,58 @@ class BuildControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.build_control_rig"
     bl_label = "Generate Control Rig"
     bl_description = (
-        "Detect arm/leg bones by name and build CR_ control bones within the armature. "
-        "Deform bones are wired via Copy Transforms constraints to the control bones."
+        "Classify the armature's bones into rig systems and build control bones "
+        "within the armature. Deform bones are wired to the controls with Copy "
+        "Transforms constraints."
     )
 
     apply_transform: bpy.props.BoolProperty(
         name="Apply All Transforms",
-        description="Apply transforms to the armature and its children before building.",
+        description=(
+            "Apply the object transforms of the armature and its children before "
+            "building, so control placement is computed in a clean coordinate space"
+        ),
         default=True,
     )  # pyright: ignore [reportInvalidTypeForm]
 
     minimize_bone_rolls: bpy.props.BoolProperty(
         name="Minimize Bone Rolls",
-        description="Snap every bone's roll to the nearest 90° increment closest to zero before building the control rig.",
+        description=(
+            "Snap every bone's roll to the nearest 90 degree increment closest to "
+            "zero before building. Only applies in strict mode, since loose mode "
+            "never modifies the skeleton"
+        ),
         default=True,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    mode: bpy.props.EnumProperty(
+        name="Mode",
+        description=(
+            "How the control rig reconciles with the deform skeleton. Strict expects "
+            "a conformed skeleton and validates it before building; loose builds over "
+            "an untouched skeleton to keep source animations compatible"
+        ),
+        items=[
+            (
+                rigging.BUILD_MODE_STRICT,
+                "Strict",
+                "Require the skeleton to already follow Yello's convention, for "
+                "example the pelvis pointing down. Controls are placed to match the "
+                "deform bones exactly, and any bone that breaks the convention is "
+                "reported so you can fix it or cancel before building. Use this for "
+                "skeletons you author and clean up yourself",
+            ),
+            (
+                rigging.BUILD_MODE_LOOSE,
+                "Loose",
+                "Build over a skeleton you must not modify, such as a Mixamo or Meshy "
+                "import you want to keep animation compatible. Non-conforming bones "
+                "are reconciled with hidden offset bones instead of being reported, "
+                "and the deform skeleton is left untouched so source animations still "
+                "load in the engine",
+            ),
+        ],
+        default=rigging.BUILD_MODE_STRICT,
     )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
@@ -384,15 +439,61 @@ class BuildControlRigOperator(bpy.types.Operator):
         obj = context.object
         return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
 
+    def _classify(self, skeleton: bpy.types.Object):
+        """Classify the skeleton's bones into systems, returning (systems, message, raw)."""
+        bone_names = [b.name for b in skeleton.data.bones]
+        bone_parents = {
+            b.name: (b.parent.name if b.parent else None)
+            for b in skeleton.data.bones
+        }
+        return rigging.classify_bones(bone_names, bone_parents)
+
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
-        return context.window_manager.invoke_props_dialog(self, width=300)
+        self._interactive = True
+        self._systems = None
+        self._findings = []
+        self._classify_error = ""
+        if ollama.reachable():
+            systems, message, _ = self._classify(context.object)
+            if systems:
+                self._systems = systems
+                self._findings = rigging.diagnose_skeleton(context.object, systems)
+            else:
+                self._classify_error = message
+        return context.window_manager.invoke_props_dialog(self, width=360)
 
     def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
         if not ollama.reachable():
-            self.layout.label(text="Ollama is offline.", icon="ERROR")
-            self.layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
-        self.layout.prop(self, "apply_transform")
-        self.layout.prop(self, "minimize_bone_rolls")
+            layout.label(text="Ollama is offline.", icon="ERROR")
+            layout.label(text=f"Make sure Ollama is running at {ollama.URL}.")
+            return
+        layout.prop(self, "mode")
+        layout.prop(self, "apply_transform")
+        rolls = layout.column()
+        rolls.enabled = self.mode == rigging.BUILD_MODE_STRICT
+        rolls.prop(self, "minimize_bone_rolls")
+
+        classify_error = getattr(self, "_classify_error", "")
+        findings = getattr(self, "_findings", [])
+        if classify_error:
+            box = layout.box()
+            box.label(text="Classification failed:", icon="ERROR")
+            box.label(text=classify_error[:80])
+            return
+        if findings:
+            box = layout.box()
+            if self.mode == rigging.BUILD_MODE_STRICT:
+                box.label(text="Skeleton does not match convention:", icon="ERROR")
+            else:
+                box.label(
+                    text="Reconciled with offset bones (kept intact):", icon="INFO"
+                )
+            for finding in findings:
+                for line in _wrap_finding(finding):
+                    box.label(text=line)
+            if self.mode == rigging.BUILD_MODE_STRICT:
+                box.label(text="Confirm to build anyway, or cancel.")
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
@@ -405,13 +506,27 @@ class BuildControlRigOperator(bpy.types.Operator):
             for obj in objects:
                 misc.apply_transforms(obj)
 
-        bone_names = [b.name for b in skeleton.data.bones]
-        systems, message, raw = rigging.classify_bones(bone_names)
-        self.report({"INFO"}, f"Ollama: {raw}")
-        if not systems:
-            self.report({"ERROR"}, message)
-            return {"CANCELLED"}
-        self.report({"INFO"}, message)
+        systems = getattr(self, "_systems", None)
+        findings = getattr(self, "_findings", [])
+        if systems is None:
+            systems, message, raw = self._classify(skeleton)
+            self.report({"INFO"}, f"Ollama: {raw}")
+            if not systems:
+                self.report({"ERROR"}, message)
+                return {"CANCELLED"}
+            self.report({"INFO"}, message)
+            findings = rigging.diagnose_skeleton(skeleton, systems)
+
+        if self.mode == rigging.BUILD_MODE_STRICT and findings:
+            for finding in findings:
+                self.report({"WARNING"}, finding)
+            if not getattr(self, "_interactive", False):
+                self.report(
+                    {"ERROR"},
+                    "Skeleton does not match Yello convention (strict mode). "
+                    "Fix the reported issues or use Loose mode.",
+                )
+                return {"CANCELLED"}
 
         all_bone_names = rigging.extract_bone_names(systems)
 
@@ -421,7 +536,7 @@ class BuildControlRigOperator(bpy.types.Operator):
         rigging.remove_control_rig_bones(skeleton)
 
         bpy.ops.object.mode_set(mode="EDIT")
-        if self.minimize_bone_rolls:
+        if self.minimize_bone_rolls and self.mode == rigging.BUILD_MODE_STRICT:
             for edit_bone in skeleton.data.edit_bones:
                 _minimize_bone_roll(edit_bone)
         bone_data = {}
@@ -442,7 +557,7 @@ class BuildControlRigOperator(bpy.types.Operator):
                     "tail": edit_bone.tail.copy(),
                     "roll": edit_bone.roll,
                 }
-        rigging.build_control_bones(skeleton.data, systems, bone_data)
+        rigging.build_control_bones(skeleton.data, systems, bone_data, self.mode)
         rigging.build_hitbox_control_bones(skeleton.data, hitbox_bone_data)
         bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -494,9 +609,11 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         context.view_layer.objects.active = skeleton
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.wire_deform_constraints(skeleton, systems)
+        rigging.wire_deform_constraints(skeleton, systems, self.mode)
         rigging.wire_hitbox_constraints(skeleton, hitbox_bone_names)
         bpy.ops.object.mode_set(mode="OBJECT")
+
+        rigging.store_systems(skeleton, systems)
 
         skeleton.show_in_front = False
         skeleton.data.display_type = "WIRE"
@@ -522,7 +639,9 @@ class RemoveControlRigOperator(bpy.types.Operator):
     def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
         control_bone_names = [
-            b.name for b in skeleton.data.bones if "_Control" in b.name
+            b.name
+            for b in skeleton.data.bones
+            if rigging.CONTROL_SUFFIX in b.name or rigging.MECHANISM_SUFFIX in b.name
         ]
         if not control_bone_names:
             self.report({"WARNING"}, "No control rig bones found.")
@@ -536,6 +655,8 @@ class RemoveControlRigOperator(bpy.types.Operator):
             container = bpy.data.objects.get(container_name)
             if container:
                 bpy.data.objects.remove(container, do_unlink=True)
+        if rigging.SYSTEMS_PROPERTY_NAME in skeleton.data:
+            del skeleton.data[rigging.SYSTEMS_PROPERTY_NAME]
         self.report({"INFO"}, f"Removed {len(control_bone_names)} control rig bones.")
         return {"FINISHED"}
 
