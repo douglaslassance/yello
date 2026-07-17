@@ -4,6 +4,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def assign_action(obj: bpy.types.Object, action: bpy.types.Action) -> None:
+    """Assign an action to an object, creating animation data and binding its slot.
+
+    On Blender 4.4+ slotted actions, the first slot is bound so the action
+    evaluates on the object.
+    """
+    if obj.animation_data is None:
+        obj.animation_data_create()
+    obj.animation_data.action = action
+    if hasattr(obj.animation_data, "action_slot") and action.slots:
+        obj.animation_data.action_slot = action.slots[0]
+
+
 def get_action_bone_names(action: bpy.types.Action) -> list[str]:
     """Return the unique bone names referenced by pose bone fcurves in the action."""
     fcurves = get_action_fcurves(action)

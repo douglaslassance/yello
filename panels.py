@@ -58,7 +58,9 @@ class YELLO_PT_animation(Panel):
         col.operator("object.export_animated_mesh", icon="MOD_SOFT")
         col.operator("armature.export_actions", icon="RENDER_ANIMATION")
         col.separator()
+        col.operator("armature.import_animation", icon="IMPORT")
         col.operator("armature.transfer_animation", icon="ANIM_DATA")
+        col.operator("armature.cleanup_orphan_fcurves", icon="BRUSH_DATA")
 
 
 class YELLO_PT_shading(Panel):
