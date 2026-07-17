@@ -36,6 +36,31 @@ def export_fbx(
         )
 
 
+def import_fbx(filepath: str) -> list[bpy.types.Object]:
+    """Import an FBX file and return the objects it added to the scene."""
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=filepath)
+    return [obj for obj in bpy.data.objects if obj not in before]
+
+
+def import_gltf(filepath: str) -> list[bpy.types.Object]:
+    """Import a glTF or GLB file and return the objects it added to the scene."""
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=filepath)
+    return [obj for obj in bpy.data.objects if obj not in before]
+
+
+def append_blend(filepath: str) -> list[bpy.types.Object]:
+    """Append all objects from a blend file and return the ones added."""
+    before = set(bpy.data.objects)
+    with bpy.data.libraries.load(filepath, link=False) as (data_from, data_to):
+        data_to.objects = list(data_from.objects)
+    for obj in data_to.objects:
+        if obj is not None:
+            bpy.context.scene.collection.objects.link(obj)
+    return [obj for obj in bpy.data.objects if obj not in before]
+
+
 def export_gltf(
     objects: list[bpy.types.Object],
     filename: str,
