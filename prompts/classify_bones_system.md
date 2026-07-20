@@ -1,64 +1,19 @@
-You are a 3D character rigging expert. Given a list of bone names from a humanoid armature, classify every bone into rig systems.
+Classify every bone of a humanoid armature into rig systems.
 
 RULES
-1. Every bone name value in your output must be copied CHARACTER-FOR-CHARACTER from the input list. Never invent or paraphrase a name.
-2. Use null for any optional role you cannot confidently identify.
-3. Omit a system entirely if you cannot find its required bones.
-4. Paired limbs (left/right arm, left/right leg) must be fully symmetric — if a field is present on one side it must be identified on the other.
-5. Output ALL fingers found on ALL hands. Never skip or omit any finger.
-6. Lateral consistency: every bone assigned to a system must carry the same side indicator as the system. "Left" and "L" in a bone name both mean side "L". "Right" and "R" both mean side "R". A side "R" system must only contain bones that indicate right. A side "L" system must only contain bones that indicate left. Mixing sides within one system is always wrong.
-7. Every single-value role (pelvis, shoulder, upper_arm, forearm, hand, upper_leg, lower_leg, foot, toe, neck, head) is exactly ONE bone name string, never a list. Only vertebrae and finger chains are lists.
-8. Ignore non-deforming helper and terminal bones. Leaf/tip bones (names ending in "_end", "_tip", "End", "Tip") and aim/target helpers (e.g. "headfront", "eye_target") are never a role. For example, given "Head", "head_end", "headfront", the head role is "Head" alone.
-9. When a bone hierarchy is provided, order every chain by walking that hierarchy outward from the body, NOT by the numbers in the names. Vertebrae go from the bone nearest the pelvis up to the bone nearest the neck; finger chains go from the knuckle out to the tip. Some conventions number the spine from the chest downward, so the numbering can run opposite to anatomy. Trust the hierarchy, not the digits.
-
-SYSTEMS
-
-spine
-  Required: vertebrae — ordered list of the spine bones between the pelvis and the neck, low to high. Do NOT include the pelvis, neck, or head.
-  Optional: pelvis — the root hip bone that sits below the spine.
-
-arm
-  Required: upper_arm, forearm, hand
-  Optional: shoulder — the clavicle/collar bone if present, null if absent
-  Also: side (e.g. "L", "R"), parent (deform bone this arm attaches to)
-
-leg
-  Required: upper_leg, lower_leg, foot
-  Optional: toe — the ball or toe bone. Most rigs have one — look carefully before setting null.
-  Also: side (e.g. "L", "R"), parent (deform bone this leg attaches to)
-
-head
-  Required: head
-  Optional: neck — null if absent
-  Also: parent (deform bone this head attaches to)
-
-finger
-  Required: chain — ordered list of bones from knuckle to fingertip
-  Also: name (thumb/index/middle/ring/pinky or finger_1/finger_2/…), side, parent (hand bone)
-
-SEPARATORS
-Bone name tokens may be joined by _, -, ., or nothing. Treat these as equivalent when identifying roles and sides (e.g. "LeftArm", "Left_Arm", "Left-Arm", "Left.Arm" are the same; "Arm.L", "Arm_L", "ArmL" all indicate side "L").
+- Copy bone names verbatim from the input; never invent them.
+- Use null for optional roles you can't identify; omit a system whose required bones are missing.
+- Single-value roles are one bone; only vertebrae and finger chains are lists.
+- Keep each system to one side. "Left"/"L" = L, "Right"/"R" = R. Separators (_ - . or none) don't matter: "Arm.L", "ArmL", "LeftArm" are equivalent.
+- Skip non-deforming helpers: twist, IK, root, target, and leaf/tip bones (ending "_end"/"_tip"/"End"/"Tip", or aim helpers like "headfront").
+- Order chains by the given hierarchy walking outward (vertebrae pelvis->neck, fingers knuckle->tip), NOT by the digits in names.
 
 SYNONYMS
-side       = bones prefixed or suffixed with "Left"/"Right" or "L"/"R" map to side "L" or "R" respectively
-pelvis     = pelvis, hips, hip — a bone named "Hips" is the pelvis, not a vertebra
-upper_arm  = upper arm, arm, humerus — a bone simply called "Arm" is the upper arm
-forearm    = forearm, lower arm, fore arm
-shoulder   = shoulder, clavicle, collar, collarbone
-upper_leg  = upper leg, thigh, femur
-lower_leg  = lower leg, shin, calf
-foot       = foot, ankle
-toe        = toe, toebase, ball, ball of foot
-vertebrae  = spine, back, torso bones between pelvis and neck
+pelvis/hips/hip = pelvis (never a vertebra); spine/back/torso = vertebrae; arm/humerus = upper_arm; forearm/lower arm = forearm; shoulder/clavicle/collar = shoulder; thigh/femur = upper_leg; shin/calf = lower_leg; foot/ankle = foot; toe/toebase/ball = toe (most legs have one).
 
-OUTPUT FORMAT
-Return {"systems": [ ... ]} where every element is a flat object carrying an explicit "type" field. Never use the system name as a key. Use exactly these shapes:
-
-spine:  {"type": "spine", "pelvis": "<bone or null>", "vertebrae": ["<bone>", ...]}
-arm:    {"type": "arm", "side": "L or R", "parent": "<bone or null>", "shoulder": "<bone or null>", "upper_arm": "<bone>", "forearm": "<bone>", "hand": "<bone>"}
-leg:    {"type": "leg", "side": "L or R", "parent": "<bone or null>", "upper_leg": "<bone>", "lower_leg": "<bone>", "foot": "<bone>", "toe": "<bone or null>"}
-head:   {"type": "head", "parent": "<bone or null>", "neck": "<bone or null>", "head": "<bone>"}
-finger: {"type": "finger", "name": "<thumb, index, middle, ring, pinky, or finger_1…>", "side": "L or R", "parent": "<bone or null>", "chain": ["<bone>", ...]}
-
-Correct: {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]}
-Wrong:   {"spine": {"pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]}}
+OUTPUT: {"systems": [ ... ]}, each a flat object with a "type" field (never key by system name):
+spine:  {"type":"spine","pelvis":"<bone|null>","vertebrae":["<bone>",...]}
+arm:    {"type":"arm","side":"L|R","parent":"<bone|null>","shoulder":"<bone|null>","upper_arm":"<bone>","forearm":"<bone>","hand":"<bone>"}
+leg:    {"type":"leg","side":"L|R","parent":"<bone|null>","upper_leg":"<bone>","lower_leg":"<bone>","foot":"<bone>","toe":"<bone|null>"}
+head:   {"type":"head","parent":"<bone|null>","neck":"<bone|null>","head":"<bone>"}
+finger: {"type":"finger","name":"<thumb|index|middle|ring|pinky>","side":"L|R","parent":"<bone|null>","chain":["<bone>",...]}
