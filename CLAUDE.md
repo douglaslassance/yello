@@ -1,11 +1,36 @@
-Do not use header style comments in the code to group methods or classes. Instead, use docstrings for classes and methods to explain their purpose and functionality. This will help maintain a cleaner codebase and improve readability.
+# Yello
 
-Do not use spaces to align operators or values in the code. Instead, rely on consistent indentation and formatting to enhance readability without the need for manual alignment.
+## Conventions
 
-Do not use abbreviations or acronyms in variable, parameter, or function names. Write names out in full so that code is immediately understandable without context. For example, use `control_rig` instead of `cr`, `skeleton` instead of `skel_obj`, `pose_bones` instead of `pbs`, `edit_bones` instead of `ebs`, `bone_data` instead of `bd`, `mesh_builder` instead of `bm`, `constraint` instead of `c`, `pose_bone` instead of `pb`, and so on. Single-letter variables are acceptable only as standard mathematical loop indices (`i`, `j`) or in short mathematical formulas where the meaning is self-evident from context.
+### Working with the repository
 
-Do not include `Co-Authored-By` or any other attribution trailer in commit messages.
+- Make changes in the work tree and stop there. Do not `git add`, `git commit`, `git push`, or open a pull request unless asked to.
+- When asked to commit, split the work tree into logical commits rather than one lump. Each commit should stand on its own.
+- Work on the current branch (usually `main`). Do not create branches or open pull requests unless asked to.
+- Never rewrite history (rebase, amend, squash) or force push a branch that has already been pushed without asking first.
 
-Write commit messages as a single-line summary (subject line) in the imperative mood (e.g. "Add hitbox control visibility toggle", not "Added..." or "Adds..."), capped at 72 characters. Do not include a body.
+### Commit messages
 
-Do not open pull requests without asking first. Pull requests cannot be deleted. Commit to the current branch (typically `main`) unless asked otherwise.
+- A single line. No body, no bullet points, no trailers.
+- Sentence case, imperative mood, no trailing period: `Add LoRA support`, not `Added LoRA support`, `add lora support`, or `Add LoRA support.`
+- 72 characters maximum. Drop detail rather than go over.
+- No `Co-Authored-By`, no "Generated with" footer, no emoji, no AI attribution of any kind.
+- If a change seems to need a body, split it into several focused commits instead.
+
+### Pull requests
+
+- Keep the description short and objective. State what the change does, not the story of how it got there, unless a reviewer genuinely needs it.
+- No narration of rejected approaches, no open questions, no pre-emptive self review. If a decision needs input, ask it as one plain line.
+- No wall of generated text, no AI attribution.
+
+### Writing
+
+- No em dashes (—), en dashes (–), or any other non-hyphen dash character anywhere: code, comments, UI copy, commit messages, pull request descriptions, chat. Use a comma, a colon, parentheses, or a second sentence. A spaced hyphen (" - ") standing in for a dash counts as a dash. Plain hyphens are fine in compound words and as the ASCII minus in code.
+- Sentence case for user facing strings: labels, section headers, notices, command names, settings. Acronyms and proper nouns keep their capitalization.
+- Keep prose short and human. No generated wall of text, no filler, no comments restating the obvious.
+
+## Code conventions
+
+- Do not use header style comments to group methods or classes. Use docstrings on classes and methods to explain their purpose instead.
+- Do not use spaces to align operators or values. Rely on consistent indentation and formatting.
+- Do not use abbreviations or acronyms in variable, parameter, or function names. Write names out in full: `control_rig` not `cr`, `skeleton` not `skel_obj`, `pose_bones` not `pbs`, `edit_bones` not `ebs`, `bone_data` not `bd`, `mesh_builder` not `bm`, `constraint` not `c`, `pose_bone` not `pb`. Single letters are acceptable only as standard loop indices (`i`, `j`) or in short mathematical formulas where the meaning is self evident.
