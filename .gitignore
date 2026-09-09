@@ -141,3 +141,6 @@ dmypy.json
 # Blender
 *.blend*
 !*.blend
+
+# Claude Code local state
+.claude/
