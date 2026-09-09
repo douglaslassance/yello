@@ -1,7 +1,7 @@
 """Tests for Ollama prompt correctness.
 
 Run with: python -m pytest tests/test_prompts.py -v
-Requires Ollama running locally with qwen2.5:32b (override with YELLO_TEST_MODEL).
+Requires Ollama running locally with qwen3.6:27b (override with YELLO_TEST_MODEL).
 """
 
 import json
@@ -12,7 +12,7 @@ from pathlib import Path
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 OLLAMA_URL = "http://localhost:11434"
-MODEL = os.environ.get("YELLO_TEST_MODEL", "qwen2.5:32b")
+MODEL = os.environ.get("YELLO_TEST_MODEL", "qwen3.6:27b")
 
 
 def _ollama_reachable() -> bool:
