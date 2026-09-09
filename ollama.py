@@ -9,7 +9,7 @@ import bpy
 logger = logging.getLogger(__name__)
 
 URL: str = "http://localhost:11434"
-MODEL: str = "qwen3.6:27b"
+MODEL: str = "qwen2.5:32b"
 TIMEOUT_PING: int = 3
 TIMEOUT_INFER: int = 240
 
