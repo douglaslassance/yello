@@ -5,7 +5,6 @@ from .. import misc
 from ..contexts import SelectionContext, ModeContext
 from ..misc import get_active_color_attribute, get_color_attribute_layer
 
-
 class SmoothNormalsOperator(bpy.types.Operator):
     _ratio_key = "yello_smooth_normal_iterations"
 
@@ -49,7 +48,6 @@ class SmoothNormalsOperator(bpy.types.Operator):
                 misc.remove_object_from_all_collections(dup)
                 collection = misc.create_collection("Normal Sources")
                 misc.add_object_to_collection(dup, collection)
-                # dup.animation_data_clear()
                 bpy.context.view_layer.objects.active = dup
                 bpy.ops.object.modifier_add(type="SMOOTH")
                 smooth = dup.modifiers[-1]
@@ -62,7 +60,6 @@ class SmoothNormalsOperator(bpy.types.Operator):
                 data_transfer.data_types_loops = {"CUSTOM_NORMAL"}
                 data_transfer.loop_mapping = "POLYINTERP_NEAREST"
         return {"FINISHED"}
-
 
 class ResetNormalsOperator(bpy.types.Operator):
     bl_idname = "object.reset_normals"
@@ -87,7 +84,6 @@ class ResetNormalsOperator(bpy.types.Operator):
                         bpy.ops.object.modifier_remove(modifier=mod.name)
                         break
         return {"FINISHED"}
-
 
 class SetMeshColorChannelOperator(bpy.types.Operator):
     bl_idname = "object.set_vertex_color"

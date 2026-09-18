@@ -7,7 +7,6 @@ from .. import misc
 from ..contexts import CursorContext, ModeContext, SelectionContext
 from .. import rigging
 
-
 def _minimize_bone_roll(bone: bpy.types.EditBone) -> None:
     """Snap the bone's roll to the nearest 90° increment closest to zero."""
     roll = bone.roll
@@ -21,18 +20,12 @@ def _minimize_bone_roll(bone: bpy.types.EditBone) -> None:
         roll = new_roll
     bone.roll = roll
 
-
 _SIDE_PATTERNS: list[re.Pattern] = [
-    # Full word prefix with optional separator: LeftArm, Left_Arm, Left.Arm, Left-Arm
     re.compile(r'^(?P<side>Left|Right)[_\-\.]?(?P<base>.+)$', re.IGNORECASE),
-    # Full word suffix with optional separator: ArmLeft, Arm_Left, Arm.Left, Arm-Left
     re.compile(r'^(?P<base>.+?)[_\-\.]?(?P<side>Left|Right)$', re.IGNORECASE),
-    # Single letter prefix with required separator: L_Arm, L.Arm, L-Arm
     re.compile(r'^(?P<side>[LR])[_\-\.](?P<base>.+)$', re.IGNORECASE),
-    # Single letter suffix with required separator: Arm_L, Arm.L, Arm-L
     re.compile(r'^(?P<base>.+)[_\-\.](?P<side>[LR])$', re.IGNORECASE),
 ]
-
 
 def _conform_bone_side_name(name: str) -> str | None:
     """Return the bone name normalized to the .L / .R suffix convention.
@@ -52,7 +45,6 @@ def _conform_bone_side_name(name: str) -> str | None:
             suffix = 'L' if side_token in ('L', 'LEFT') else 'R'
             return f"{base}.{suffix}"
     return None
-
 
 class ToggleDeformerVisibilityOperator(bpy.types.Operator):
     """Toggle the visibility of all deforming bones uniformly based on the first one."""
@@ -94,7 +86,6 @@ class ToggleDeformerVisibilityOperator(bpy.types.Operator):
                 pose_bone.hide = should_hide
         return {"FINISHED"}
 
-
 class AlignBoneRollsOperator(bpy.types.Operator):
     bl_idname = "armature.align_bone_rolls"
     bl_label = "Align Bone Rolls"
@@ -126,8 +117,6 @@ class AlignBoneRollsOperator(bpy.types.Operator):
         first_bone_vector = bones[0].tail - bones[0].head
         last_bone_vector = bones[-1].tail - bones[-1].head
         normal = first_bone_vector.cross(last_bone_vector).normalized()
-        # TODO: Intersection is calculated in local space.
-        # This won't work if the amature transform is not zeroed out.
         intersections = mathutils.geometry.intersect_line_line(
             bones[0].head,
             bones[0].head + first_bone_vector * 10,
@@ -145,7 +134,6 @@ class AlignBoneRollsOperator(bpy.types.Operator):
             bpy.context.scene.cursor.location = intersection + normal
             bpy.ops.armature.calculate_roll(type="CURSOR")
         return {"FINISHED"}
-
 
 class AlignBonesOperator(bpy.types.Operator):
     bl_idname = "armature.align_bones"
@@ -175,7 +163,6 @@ class AlignBonesOperator(bpy.types.Operator):
             bone.tail = projected_vector + bone.head
         return {"FINISHED"}
 
-
 class CreateBoneAlignedObjectOperator(bpy.types.Operator):
     bl_idname = "pose.create_bone_aligned_object"
     bl_label = "Create Bone Aligned Object"
@@ -204,7 +191,6 @@ class CreateBoneAlignedObjectOperator(bpy.types.Operator):
         obj.empty_display_size = 0.25
         obj.empty_display_type = "ARROWS"
         return {"FINISHED"}
-
 
 class DistributeBonesEvenlyOperator(bpy.types.Operator):
     bl_idname = "armature.distribute_bones_evenly"
@@ -236,7 +222,6 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
         for bone in bones:
             bone.roll = 0
         return {"FINISHED"}
-
 
 class GenerateTwistBonesOperator(bpy.types.Operator):
     _count_key = "yello_generate_twist_bones_count"
@@ -284,8 +269,6 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
                 new_bone.tail_radius = bone.tail_radius * 1.24
                 new_bone.head = bone.head + direction * length * number
                 new_bone.tail = new_bone.head + direction * length
-                # TODO: calculate the roll interpolation been the root bone and next.
-                # For now we are matching the parent on all twists bones.
                 new_bone.roll = bone.roll
                 new_bone.parent = previous
                 if new_bone.head == previous.tail:
@@ -298,7 +281,6 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
                 bpy.context.object.pose.bones[created].bone.hide = True
         bpy.context.scene.world[self._count_key] = self.count
         return {"FINISHED"}
-
 
 class GenerateBlendBoneOperator(bpy.types.Operator):
     bl_idname = "armature.generate_blend_bone"
@@ -346,7 +328,6 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
             ].length
         new_bone.tail = tail.normalized() * 4.0 + new_bone.head
         new_bone.parent = bones[0]
-        # TODO: There is still some imperfection with this roll calculation.
         normal = parent_bone_vector.cross(child_bone_vector)
         bpy.ops.armature.select_all(action="DESELECT")
         with CursorContext():
@@ -356,7 +337,6 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
         with ModeContext("POSE"):
             bpy.context.object.pose.bones[new_bone.name].bone.hide = True
         return {"FINISHED"}
-
 
 class BuildControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.build_control_rig"
@@ -580,7 +560,6 @@ class BuildControlRigOperator(bpy.types.Operator):
         self.report({"INFO"}, "Control rig built.")
         return {"FINISHED"}
 
-
 class RemoveControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.remove_control_rig"
     bl_label = "Remove Control Rig"
@@ -615,7 +594,6 @@ class RemoveControlRigOperator(bpy.types.Operator):
         self.report({"INFO"}, f"Removed {len(control_bone_names)} control rig bones.")
         return {"FINISHED"}
 
-
 class ConformBoneSideNamesOperator(bpy.types.Operator):
     bl_idname = "armature.conform_bone_side_names"
     bl_label = "Conform Bone Name"
@@ -639,7 +617,6 @@ class ConformBoneSideNamesOperator(bpy.types.Operator):
         self.report({"INFO"}, f"Renamed {renamed} bone(s).")
         return {"FINISHED"}
 
-
 class NormalizeBoneRollOperator(bpy.types.Operator):
     bl_idname = "armature.normalize_bone_roll"
     bl_label = "Minimize Bone Roll"
@@ -657,7 +634,6 @@ class NormalizeBoneRollOperator(bpy.types.Operator):
         for bone in context.editable_bones:
             _minimize_bone_roll(bone)
         return {"FINISHED"}
-
 
 class TransferWeightsOperator(bpy.types.Operator):
     bl_idname = "object.transfer_weights"
