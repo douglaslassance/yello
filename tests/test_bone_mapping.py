@@ -12,6 +12,7 @@ import io
 import json
 import unittest
 import urllib.error
+from types import SimpleNamespace
 from unittest import mock
 
 from yello_ext import rigging
@@ -336,6 +337,27 @@ class TestClassifyBonesHierarchy(unittest.TestCase):
     def test_absent_marker_when_no_parents(self):
         prompt = self._capture_user_prompt(["Hips"])
         self.assertIn("(not provided)", prompt)
+
+
+class TestClassifySkeleton(unittest.TestCase):
+    """rigging.classify_skeleton: reading names and parents off the armature."""
+
+    def test_parents_read_from_armature(self):
+        hips = SimpleNamespace(name="Hips", parent=None)
+        spine02 = SimpleNamespace(name="Spine02", parent=hips)
+        spine01 = SimpleNamespace(name="Spine01", parent=spine02)
+        spine = SimpleNamespace(name="Spine", parent=spine01)
+        skeleton = SimpleNamespace(
+            data=SimpleNamespace(bones=[hips, spine02, spine01, spine])
+        )
+        with mock.patch.object(
+            rigging, "classify_bones", return_value=(None, "", "")
+        ) as classify_bones:
+            rigging.classify_skeleton(skeleton)
+        classify_bones.assert_called_once_with(
+            ["Hips", "Spine02", "Spine01", "Spine"],
+            {"Hips": None, "Spine02": "Hips", "Spine01": "Spine02", "Spine": "Spine01"},
+        )
 
 
 class TestExtractBoneNames(unittest.TestCase):

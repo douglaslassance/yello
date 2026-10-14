@@ -107,6 +107,17 @@ def classify_bones(
         return None, f"Ollama error: {exc}", ""
 
 
+def classify_skeleton(
+    skeleton: bpy.types.Object,
+) -> tuple[list[SystemDict] | None, str, str]:
+    """Classify the skeleton's bones into systems, sending its hierarchy along."""
+    bones = skeleton.data.bones
+    bone_parents = {
+        bone.name: (bone.parent.name if bone.parent else None) for bone in bones
+    }
+    return classify_bones([bone.name for bone in bones], bone_parents)
+
+
 def _normalize_system_entry(entry: dict[str, Any]) -> dict[str, Any]:
     """Return a system object flattened to carry an explicit "type" field.
 
