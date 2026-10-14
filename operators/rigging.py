@@ -411,15 +411,6 @@ class BuildControlRigOperator(bpy.types.Operator):
         obj = context.object
         return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
 
-    def _classify(self, skeleton: bpy.types.Object):
-        """Classify the skeleton's bones into systems, returning (systems, message, raw)."""
-        bone_names = [b.name for b in skeleton.data.bones]
-        bone_parents = {
-            b.name: (b.parent.name if b.parent else None)
-            for b in skeleton.data.bones
-        }
-        return rigging.classify_bones(bone_names, bone_parents)
-
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         return context.window_manager.invoke_props_dialog(self, width=360)
 
@@ -438,7 +429,7 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         systems = None if self.reclassify else rigging.load_systems(skeleton)
         if systems is None:
-            systems, message, raw = self._classify(skeleton)
+            systems, message, raw = rigging.classify_skeleton(skeleton)
             self.report({"INFO"}, f"Ollama: {raw}")
             if not systems:
                 self.report({"ERROR"}, message)

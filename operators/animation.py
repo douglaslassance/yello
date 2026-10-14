@@ -332,8 +332,7 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
             self.report({"ERROR"}, "No armature found in the imported file.")
             return {"CANCELLED"}
 
-        source_bone_names = [bone.name for bone in source.data.bones]
-        systems, message, raw = rigging.classify_bones(source_bone_names)
+        systems, message, raw = rigging.classify_skeleton(source)
         self.report({"INFO"}, f"Ollama: {raw}")
         if not systems:
             self._cleanup(imported, source_actions)
