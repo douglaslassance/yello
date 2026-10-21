@@ -4,6 +4,64 @@ from typing import Self
 
 import bpy
 
+TRANSFORM_PROPERTY_NAMES = (
+    "location",
+    "rotation_quaternion",
+    "rotation_euler",
+    "rotation_axis_angle",
+    "scale",
+)
+
+
+class AnimationContext:
+    """A context that will restore an object's action, transform and pose on exit."""
+
+    def __init__(self, obj: bpy.types.Object) -> None:
+        self.obj = obj
+        animation_data = obj.animation_data
+        self.action = animation_data.action if animation_data else None
+        self.action_slot = getattr(animation_data, "action_slot", None)
+        self.transform = self._read_transform(obj)
+        self.pose = (
+            {bone.name: self._read_transform(bone) for bone in obj.pose.bones}
+            if obj.pose
+            else {}
+        )
+
+    @staticmethod
+    def _read_transform(
+        target: bpy.types.Object | bpy.types.PoseBone,
+    ) -> dict[str, tuple[float, ...]]:
+        return {name: tuple(getattr(target, name)) for name in TRANSFORM_PROPERTY_NAMES}
+
+    @staticmethod
+    def _write_transform(
+        target: bpy.types.Object | bpy.types.PoseBone,
+        transform: dict[str, tuple[float, ...]],
+    ) -> None:
+        for name, value in transform.items():
+            setattr(target, name, value)
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
+    ) -> None:
+        animation_data = self.obj.animation_data
+        if animation_data is not None:
+            animation_data.action = self.action
+            if self.action is not None and hasattr(animation_data, "action_slot"):
+                animation_data.action_slot = self.action_slot
+        self._write_transform(self.obj, self.transform)
+        for name, transform in self.pose.items():
+            bone = self.obj.pose.bones.get(name)
+            if bone is not None:
+                self._write_transform(bone, transform)
+
 
 class CursorContext:
     """A context that will restore the original location of the cursor on exit."""

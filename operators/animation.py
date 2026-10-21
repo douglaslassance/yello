@@ -4,7 +4,7 @@ import datetime
 import bpy
 from bpy_extras.io_utils import ImportHelper
 
-from ..contexts import SelectionContext, VisibleContext
+from ..contexts import AnimationContext, SelectionContext, VisibleContext
 
 from .. import animation
 from .. import misc
@@ -142,7 +142,7 @@ class ExportActionsOperator(bpy.types.Operator):
         filename = os.path.splitext(bpy.data.filepath)[0] + extension
         year = datetime.datetime.now().year
         misc.make_writable(filename)
-        with VisibleContext(skeleton):
+        with VisibleContext(skeleton), AnimationContext(skeleton):
             with SelectionContext():
                 misc.select_objects(objects)
                 if self.file_format == "GLTF":
