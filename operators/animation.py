@@ -131,6 +131,15 @@ class ExportActionsOperator(bpy.types.Operator):
         default=True,
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    export_markers: bpy.props.BoolProperty(
+        name="Export markers",
+        description=(
+            "Add each action's pose markers to the extras of its animation "
+            "(ignored with FBX)."
+        ),
+        default=True,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     save_settings: bpy.props.BoolProperty(
         name="Save Settings",
         description="Remember export settings in the blend file.",
@@ -234,6 +243,9 @@ class ExportActionsOperator(bpy.types.Operator):
                         use_armature_deform_only=True,
                         use_space_transform=True,
                     )
+        if self.file_format == "GLTF" and self.export_markers:
+            tagged = io.add_glb_action_markers(filename)
+            self.report({"INFO"}, f"Added markers to {tagged} animation(s).")
         return {"FINISHED"}
 
 

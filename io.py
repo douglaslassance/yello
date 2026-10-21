@@ -1,7 +1,13 @@
+import json
+import struct
+
 import bpy
 
 from . import contexts
 from .misc import select_objects, make_writable
+
+GLB_HEADER = struct.Struct("<4sII")
+GLB_CHUNK_HEADER = struct.Struct("<I4s")
 
 
 def export_fbx(
@@ -81,3 +87,57 @@ def export_gltf(
             use_visible=True,
             will_save_settings=save_settings,
         )
+
+
+def read_glb(filepath: str) -> tuple[dict, bytes]:
+    """Return the JSON document of a GLB file and the raw chunks that follow it."""
+    with open(filepath, "rb") as handle:
+        data = handle.read()
+    magic, _, _ = GLB_HEADER.unpack_from(data)
+    if magic != b"glTF":
+        raise ValueError(f"Not a GLB file: {filepath}")
+    json_length, _ = GLB_CHUNK_HEADER.unpack_from(data, GLB_HEADER.size)
+    json_start = GLB_HEADER.size + GLB_CHUNK_HEADER.size
+    json_end = json_start + json_length
+    return json.loads(data[json_start:json_end]), data[json_end:]
+
+
+def write_glb(filepath: str, document: dict, trailing_chunks: bytes) -> None:
+    """Write a GLB file from a JSON document and the raw chunks that follow it."""
+    json_bytes = json.dumps(document, separators=(",", ":"), ensure_ascii=False)
+    json_bytes = json_bytes.encode("utf-8")
+    json_bytes += b" " * (-len(json_bytes) % 4)
+    length = (
+        GLB_HEADER.size + GLB_CHUNK_HEADER.size + len(json_bytes) + len(trailing_chunks)
+    )
+    with open(filepath, "wb") as handle:
+        handle.write(GLB_HEADER.pack(b"glTF", 2, length))
+        handle.write(GLB_CHUNK_HEADER.pack(len(json_bytes), b"JSON"))
+        handle.write(json_bytes)
+        handle.write(trailing_chunks)
+
+
+def add_glb_action_markers(filepath: str) -> int:
+    """Add each action's pose markers to its GLB animation extras and count them."""
+    document, trailing_chunks = read_glb(filepath)
+    render = bpy.context.scene.render
+    # Matches the glTF exporter's own frame to seconds conversion.
+    frames_per_second = render.fps * render.fps_base
+    tagged = 0
+    for animation in document.get("animations", []):
+        action = bpy.data.actions.get(animation.get("name", ""))
+        if action is None or not action.pose_markers:
+            continue
+        markers = sorted(action.pose_markers, key=lambda marker: marker.frame)
+        animation.setdefault("extras", {})["markers"] = [
+            {
+                "name": marker.name,
+                "frame": marker.frame,
+                "time": marker.frame / frames_per_second,
+            }
+            for marker in markers
+        ]
+        tagged += 1
+    if tagged:
+        write_glb(filepath, document, trailing_chunks)
+    return tagged
