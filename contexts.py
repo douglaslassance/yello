@@ -129,6 +129,29 @@ class DisabledConstraintsContext:
                 constraint.mute = self.muted[(bone.name, constraint.name)]
 
 
+class MutedFcurvesContext:
+    """A context that mutes the given fcurves and restores their mute state on exit."""
+
+    def __init__(self, fcurves: list[bpy.types.FCurve]) -> None:
+        self.muted: list[tuple[bpy.types.FCurve, bool]] = [
+            (fcurve, fcurve.mute) for fcurve in fcurves
+        ]
+
+    def __enter__(self) -> Self:
+        for fcurve, _ in self.muted:
+            fcurve.mute = True
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
+    ) -> None:
+        for fcurve, mute in self.muted:
+            fcurve.mute = mute
+
+
 class VisibleContext:
     """A context that will restore the visibility state of an object on exit."""
 

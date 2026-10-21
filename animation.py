@@ -3,6 +3,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+OBJECT_TRANSFORM_DATA_PATHS = {
+    "location",
+    "rotation_euler",
+    "rotation_quaternion",
+    "rotation_axis_angle",
+    "scale",
+    "delta_location",
+    "delta_rotation_euler",
+    "delta_rotation_quaternion",
+    "delta_scale",
+}
+
 
 def assign_action(obj: bpy.types.Object, action: bpy.types.Action) -> None:
     """Assign an action to an object, creating animation data and binding its slot.
@@ -46,6 +58,16 @@ def get_action_fcurves(action: bpy.types.Action):
             if hasattr(strip, "channelbags") and strip.channelbags:
                 return strip.channelbags[0].fcurves
     return None
+
+
+def get_object_transform_fcurves(action: bpy.types.Action) -> list[bpy.types.FCurve]:
+    """Return the fcurves animating the object's own transform rather than its bones."""
+    fcurves = get_action_fcurves(action)
+    if fcurves is None:
+        return []
+    return [
+        fcurve for fcurve in fcurves if fcurve.data_path in OBJECT_TRANSFORM_DATA_PATHS
+    ]
 
 
 def ensure_action_fcurves(action: bpy.types.Action):
