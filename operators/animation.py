@@ -4,7 +4,12 @@ import datetime
 import bpy
 from bpy_extras.io_utils import ImportHelper
 
-from ..contexts import AnimationContext, SelectionContext, VisibleContext
+from ..contexts import (
+    AnimationContext,
+    MutedFcurvesContext,
+    SelectionContext,
+    VisibleContext,
+)
 
 from .. import animation
 from .. import misc
@@ -117,6 +122,15 @@ class ExportActionsOperator(bpy.types.Operator):
         default=True,
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    disable_armature_animation: bpy.props.BoolProperty(
+        name="Disable armature animation",
+        description=(
+            "Ignore keys on the armature object itself so only bone animation "
+            "is exported. The armature holds the first frame of its active action."
+        ),
+        default=True,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     save_settings: bpy.props.BoolProperty(
         name="Save Settings",
         description="Remember export settings in the blend file.",
@@ -132,6 +146,30 @@ class ExportActionsOperator(bpy.types.Operator):
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         return context.window_manager.invoke_props_dialog(self)
 
+    @staticmethod
+    def _armature_transform_fcurves(
+        skeleton: bpy.types.Object,
+    ) -> list[bpy.types.FCurve]:
+        """Return the object transform fcurves of actions the skeleton can play."""
+        animation_data = skeleton.animation_data
+        active_action = animation_data.action if animation_data else None
+        fcurves = []
+        for action in bpy.data.actions:
+            if action == active_action or animation.get_action_bone_names(action):
+                fcurves += animation.get_object_transform_fcurves(action)
+        return fcurves
+
+    @staticmethod
+    def _hold_active_action_start(skeleton: bpy.types.Object) -> None:
+        """Set the skeleton's own transform to the first frame of its active action."""
+        action = skeleton.animation_data.action if skeleton.animation_data else None
+        if action is None:
+            return
+        frame = action.frame_range[0]
+        for fcurve in animation.get_object_transform_fcurves(action):
+            values = getattr(skeleton, fcurve.data_path)
+            values[fcurve.array_index] = fcurve.evaluate(frame)
+
     def execute(self, context: bpy.types.Context) -> set[str]:
         skeleton = context.object
         objects = [skeleton]
@@ -142,8 +180,15 @@ class ExportActionsOperator(bpy.types.Operator):
         filename = os.path.splitext(bpy.data.filepath)[0] + extension
         year = datetime.datetime.now().year
         misc.make_writable(filename)
+        muted_fcurves = (
+            self._armature_transform_fcurves(skeleton)
+            if self.disable_armature_animation
+            else []
+        )
         with VisibleContext(skeleton), AnimationContext(skeleton):
-            with SelectionContext():
+            with MutedFcurvesContext(muted_fcurves), SelectionContext():
+                if muted_fcurves:
+                    self._hold_active_action_start(skeleton)
                 misc.select_objects(objects)
                 if self.file_format == "GLTF":
                     bpy.ops.export_scene.gltf(
