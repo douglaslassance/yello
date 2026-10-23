@@ -1800,6 +1800,23 @@ def _add_copy_transforms(
 
 
 
+def _rest_pole_angle(
+    armature: bpy.types.Object, upper_leg_name: str, lower_leg_name: str, pole_name: str
+) -> float:
+    """Return the IK pole angle that holds a leg chain at its rest pose, whatever its roll."""
+    bones = armature.data.bones
+    upper_leg = bones[upper_leg_name]
+    lower_leg = bones[lower_leg_name]
+    upper_leg_axis = upper_leg.tail_local - upper_leg.head_local
+    pole_normal = (lower_leg.tail_local - upper_leg.head_local).cross(
+        bones[pole_name].head_local - upper_leg.head_local
+    )
+    pole_axis = pole_normal.cross(upper_leg_axis)
+    x_axis = upper_leg.matrix_local.to_3x3().col[0]
+    angle = x_axis.angle(pole_axis)
+    return -angle if x_axis.cross(pole_axis).dot(upper_leg_axis) > 0 else angle
+
+
 def wire_deform_constraints(
     armature: bpy.types.Object,
     systems: list[SystemDict],
@@ -1864,7 +1881,12 @@ def wire_deform_constraints(
                 constraint.pole_subtarget = f"Leg_Pole_Control.{side}"
                 constraint.chain_count = len(ik_chain)
                 constraint.use_stretch = False
-                constraint.pole_angle = -math.pi / 2
+                constraint.pole_angle = _rest_pole_angle(
+                    armature,
+                    system["upper_leg"],
+                    system["lower_leg"],
+                    f"Leg_Pole_Control.{side}",
+                )
             for deform_key, control_bone in (
                 ("foot", f"IK_Target_Control.{side}"),
                 ("toe", f"Toe_Control.{side}"),
