@@ -7,6 +7,7 @@ from .. import misc
 from ..contexts import CursorContext, ModeContext, SelectionContext
 from .. import rigging
 
+
 def _minimize_bone_roll(bone: bpy.types.EditBone) -> None:
     """Snap the bone's roll to the nearest 90° increment closest to zero."""
     roll = bone.roll
@@ -20,12 +21,14 @@ def _minimize_bone_roll(bone: bpy.types.EditBone) -> None:
         roll = new_roll
     bone.roll = roll
 
+
 _SIDE_PATTERNS: list[re.Pattern] = [
-    re.compile(r'^(?P<side>Left|Right)[_\-\.]?(?P<base>.+)$', re.IGNORECASE),
-    re.compile(r'^(?P<base>.+?)[_\-\.]?(?P<side>Left|Right)$', re.IGNORECASE),
-    re.compile(r'^(?P<side>[LR])[_\-\.](?P<base>.+)$', re.IGNORECASE),
-    re.compile(r'^(?P<base>.+)[_\-\.](?P<side>[LR])$', re.IGNORECASE),
+    re.compile(r"^(?P<side>Left|Right)[_\-\.]?(?P<base>.+)$", re.IGNORECASE),
+    re.compile(r"^(?P<base>.+?)[_\-\.]?(?P<side>Left|Right)$", re.IGNORECASE),
+    re.compile(r"^(?P<side>[LR])[_\-\.](?P<base>.+)$", re.IGNORECASE),
+    re.compile(r"^(?P<base>.+)[_\-\.](?P<side>[LR])$", re.IGNORECASE),
 ]
+
 
 def _conform_bone_side_name(name: str) -> str | None:
     """Return the bone name normalized to the .L / .R suffix convention.
@@ -35,16 +38,17 @@ def _conform_bone_side_name(name: str) -> str | None:
     the canonical .L or .R suffix. Returns None if no side token is found
     or if the name already ends with .L or .R.
     """
-    if name.endswith('.L') or name.endswith('.R'):
+    if name.endswith(".L") or name.endswith(".R"):
         return None
     for pattern in _SIDE_PATTERNS:
         match = pattern.fullmatch(name)
         if match:
-            side_token = match.group('side').upper()
-            base = match.group('base')
-            suffix = 'L' if side_token in ('L', 'LEFT') else 'R'
+            side_token = match.group("side").upper()
+            base = match.group("base")
+            suffix = "L" if side_token in ("L", "LEFT") else "R"
             return f"{base}.{suffix}"
     return None
+
 
 class ToggleDeformerVisibilityOperator(bpy.types.Operator):
     """Toggle the visibility of all deforming bones uniformly based on the first one."""
@@ -86,6 +90,7 @@ class ToggleDeformerVisibilityOperator(bpy.types.Operator):
                 pose_bone.hide = should_hide
         return {"FINISHED"}
 
+
 class AlignBoneRollsOperator(bpy.types.Operator):
     bl_idname = "armature.align_bone_rolls"
     bl_label = "Align Bone Rolls"
@@ -110,7 +115,9 @@ class AlignBoneRollsOperator(bpy.types.Operator):
                 "Armature has an unapplied scale. Apply the transform before aligning bone rolls.",
             )
             return {"CANCELLED"}
-        bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
+        bones, error = misc.validate_bone_chain(
+            [b for b in context.editable_bones if b.select]
+        )
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -135,6 +142,7 @@ class AlignBoneRollsOperator(bpy.types.Operator):
             bpy.ops.armature.calculate_roll(type="CURSOR")
         return {"FINISHED"}
 
+
 class AlignBonesOperator(bpy.types.Operator):
     bl_idname = "armature.align_bones"
     bl_label = "Align Bones"
@@ -149,7 +157,9 @@ class AlignBonesOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
+        bones, error = misc.validate_bone_chain(
+            [b for b in context.editable_bones if b.select]
+        )
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -162,6 +172,7 @@ class AlignBonesOperator(bpy.types.Operator):
             projected_vector = misc.get_projected_vector(bone_vector, normal)
             bone.tail = projected_vector + bone.head
         return {"FINISHED"}
+
 
 class CreateBoneAlignedObjectOperator(bpy.types.Operator):
     bl_idname = "pose.create_bone_aligned_object"
@@ -192,6 +203,7 @@ class CreateBoneAlignedObjectOperator(bpy.types.Operator):
         obj.empty_display_type = "ARROWS"
         return {"FINISHED"}
 
+
 class DistributeBonesEvenlyOperator(bpy.types.Operator):
     bl_idname = "armature.distribute_bones_evenly"
     bl_label = "Distribute Bones Evenly"
@@ -206,7 +218,9 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
+        bones, error = misc.validate_bone_chain(
+            [b for b in context.editable_bones if b.select]
+        )
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -222,6 +236,7 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
         for bone in bones:
             bone.roll = 0
         return {"FINISHED"}
+
 
 class GenerateTwistBonesOperator(bpy.types.Operator):
     _count_key = "yello_generate_twist_bones_count"
@@ -282,6 +297,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
         bpy.context.scene.world[self._count_key] = self.count
         return {"FINISHED"}
 
+
 class GenerateBlendBoneOperator(bpy.types.Operator):
     bl_idname = "armature.generate_blend_bone"
     bl_label = "Generate Blend Bone"
@@ -298,7 +314,9 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
         return False
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        bones, error = misc.validate_bone_chain([b for b in context.editable_bones if b.select])
+        bones, error = misc.validate_bone_chain(
+            [b for b in context.editable_bones if b.select]
+        )
         if error:
             self.report({"ERROR"}, error)
             return {"FINISHED"}
@@ -338,6 +356,7 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
             bpy.context.object.pose.bones[new_bone.name].bone.hide = True
         return {"FINISHED"}
 
+
 class BuildControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.build_control_rig"
     bl_label = "Generate Control Rig"
@@ -359,9 +378,10 @@ class BuildControlRigOperator(bpy.types.Operator):
     minimize_bone_rolls: bpy.props.BoolProperty(
         name="Minimize Bone Rolls",
         description=(
-            "Snap every bone's roll to the nearest 90 degree increment closest to "
-            "zero before building. Only applies in strict mode, since loose mode "
-            "never modifies the skeleton"
+            "Snap the roll of bones the controls do not orient, such as the legs "
+            "and spine, to the nearest 90 degree increment closest to zero before "
+            "building. Only applies in strict mode, since loose mode never modifies "
+            "the skeleton"
         ),
         default=True,
     )  # pyright: ignore [reportInvalidTypeForm]
@@ -369,28 +389,30 @@ class BuildControlRigOperator(bpy.types.Operator):
     mode: bpy.props.EnumProperty(
         name="Mode",
         description=(
-            "How the control rig reconciles with the deform skeleton. Strict expects "
-            "a conformed skeleton and validates it before building; loose builds over "
-            "an untouched skeleton to keep source animations compatible"
+            "How the control rig reconciles with the deform skeleton. Both modes "
+            "build the same controls with the same orientation, so animation "
+            "transfers between rigs built in either mode. Strict expects a conformed "
+            "skeleton and validates it before building; loose builds over an "
+            "untouched skeleton to keep source animations compatible"
         ),
         items=[
             (
                 rigging.BUILD_MODE_STRICT,
                 "Strict",
                 "Require the skeleton to already follow Yello's convention, for "
-                "example the pelvis pointing down. Controls are placed to match the "
-                "deform bones exactly, and any bone that breaks the convention is "
-                "reported so you can fix it or cancel before building. Use this for "
-                "skeletons you author and clean up yourself",
+                "example the pelvis pointing down. Deform bones are rolled to match "
+                "the controls that drive them, and any bone that breaks the "
+                "convention is reported so you can fix it or cancel before building. "
+                "Use this for skeletons you author and clean up yourself",
             ),
             (
                 rigging.BUILD_MODE_LOOSE,
                 "Loose",
                 "Build over a skeleton you must not modify, such as a Mixamo or Meshy "
-                "import you want to keep animation compatible. Non-conforming bones "
-                "are reconciled with hidden offset bones instead of being reported, "
-                "and the deform skeleton is left untouched so source animations still "
-                "load in the engine",
+                "import you want to keep animation compatible. Hidden offset bones "
+                "bridge each control to its deform bone, so the controls match strict "
+                "mode while the deform skeleton stays untouched and source animations "
+                "still load in the engine",
             ),
         ],
         default=rigging.BUILD_MODE_STRICT,
@@ -535,7 +557,7 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         context.view_layer.objects.active = skeleton
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.wire_deform_constraints(skeleton, systems, self.mode, spine_curve)
+        rigging.wire_deform_constraints(skeleton, systems, spine_curve)
         rigging.wire_hitbox_constraints(skeleton, hitbox_bone_names)
         bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -550,6 +572,7 @@ class BuildControlRigOperator(bpy.types.Operator):
         bpy.context.scene.frame_set(bpy.context.scene.frame_current)
         self.report({"INFO"}, "Control rig built.")
         return {"FINISHED"}
+
 
 class RemoveControlRigOperator(bpy.types.Operator):
     bl_idname = "armature.remove_control_rig"
@@ -582,6 +605,7 @@ class RemoveControlRigOperator(bpy.types.Operator):
         self.report({"INFO"}, f"Removed {len(control_bone_names)} control rig bones.")
         return {"FINISHED"}
 
+
 class ConformBoneSideNamesOperator(bpy.types.Operator):
     bl_idname = "armature.conform_bone_side_names"
     bl_label = "Conform Bone Name"
@@ -605,6 +629,7 @@ class ConformBoneSideNamesOperator(bpy.types.Operator):
         self.report({"INFO"}, f"Renamed {renamed} bone(s).")
         return {"FINISHED"}
 
+
 class NormalizeBoneRollOperator(bpy.types.Operator):
     bl_idname = "armature.normalize_bone_roll"
     bl_label = "Minimize Bone Roll"
@@ -622,6 +647,7 @@ class NormalizeBoneRollOperator(bpy.types.Operator):
         for bone in context.editable_bones:
             _minimize_bone_roll(bone)
         return {"FINISHED"}
+
 
 class TransferWeightsOperator(bpy.types.Operator):
     bl_idname = "object.transfer_weights"
@@ -645,7 +671,8 @@ class TransferWeightsOperator(bpy.types.Operator):
         if not active or active.type != "MESH":
             return False
         targets = [
-            obj for obj in context.selected_objects
+            obj
+            for obj in context.selected_objects
             if obj.type == "MESH" and obj != active
         ]
         return len(targets) >= 1
@@ -653,12 +680,14 @@ class TransferWeightsOperator(bpy.types.Operator):
     def execute(self, context: bpy.types.Context) -> set[str]:
         source = context.active_object
         targets = [
-            obj for obj in context.selected_objects
+            obj
+            for obj in context.selected_objects
             if obj.type == "MESH" and obj != source
         ]
         source_armature = next(
             (
-                mod.object for mod in source.modifiers
+                mod.object
+                for mod in source.modifiers
                 if mod.type == "ARMATURE" and mod.object
             ),
             None,
@@ -680,7 +709,8 @@ class TransferWeightsOperator(bpy.types.Operator):
                     context.view_layer.objects.active = target
                     data_transfer_modifier = next(
                         (
-                            mod for mod in target.modifiers
+                            mod
+                            for mod in target.modifiers
                             if mod.type == "DATA_TRANSFER"
                         ),
                         None,
