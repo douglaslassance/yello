@@ -1,0 +1,20 @@
+[project]
+name = "yello"
+# Placeholder, the add-on is not packaged from here and its version lives in blender_manifest.toml.
+version = "0.0.0"
+# Blender 4.2 bundles Python 3.11.
+requires-python = ">=3.11"
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "fake-bpy-module-latest>=20261023",
+    "pytest>=9.1.1",
+    "ruff>=0.17.2",
+]
+
+[tool.ruff.lint]
+# The package takes the name of its checkout folder, which need not be a valid module name.
+ignore = ["N999"]
