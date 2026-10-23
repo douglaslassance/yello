@@ -240,6 +240,7 @@ MECHANISM_SUFFIX: str = "_Mechanism"
 CONTROL_RIG_CONSTRAINT_NAME: str = "Control Rig"
 RETARGET_CONSTRAINT_NAME: str = "Retarget"
 SYSTEMS_PROPERTY_NAME: str = "yello_systems"
+CONTROL_RIG_CONTAINER_PROPERTY_NAME: str = "yello_control_rig_container"
 
 BUILD_MODE_STRICT: str = "STRICT"
 BUILD_MODE_LOOSE: str = "LOOSE"
@@ -465,20 +466,21 @@ def get_or_load_shape(
     with bpy.data.libraries.load(str(blend_path), link=False) as (data_from, data_to):
         if blend_name in data_from.objects:
             data_to.objects = [blend_name]
-    loaded = bpy.data.objects.get(blend_name)
+    loaded = data_to.objects[0] if data_to.objects else None
     if loaded and display_name:
         loaded.name = display_name
-    return bpy.data.objects.get(name)
+    return loaded
 
 
 def get_or_create_control_rig_container(
-    skeleton: bpy.types.Object, name: str
+    skeleton: bpy.types.Object, role: str
 ) -> bpy.types.Object:
-    """Return or create a named Empty parented to the skeleton for grouping CR_ objects."""
-    existing = bpy.data.objects.get(name)
-    if existing:
-        return existing
-    container = bpy.data.objects.new(name, None)
+    """Return or create the skeleton's child Empty grouping its control rig objects of a role."""
+    for child in skeleton.children:
+        if child.get(CONTROL_RIG_CONTAINER_PROPERTY_NAME) == role:
+            return child
+    container = bpy.data.objects.new(f"{skeleton.name}_{role}", None)
+    container[CONTROL_RIG_CONTAINER_PROPERTY_NAME] = role
     container.empty_display_type = "PLAIN_AXES"
     container.empty_display_size = 0.0
     for col in skeleton.users_collection:
@@ -2093,12 +2095,24 @@ def _is_control_rig_spline_ik(constraint: bpy.types.Constraint) -> bool:
     )
 
 
-def _remove_curve_object(curve_object: bpy.types.Object) -> None:
-    """Delete a curve object and its curve data once nothing else uses it."""
-    curve = curve_object.data
-    bpy.data.objects.remove(curve_object, do_unlink=True)
-    if curve.users == 0:
-        bpy.data.curves.remove(curve)
+def _remove_object(obj: bpy.types.Object) -> None:
+    """Delete an object and its data once nothing else uses it."""
+    data = obj.data
+    bpy.data.objects.remove(obj, do_unlink=True)
+    if data is not None and data.users == 0:
+        bpy.data.batch_remove([data])
+
+
+def remove_control_rig_containers(skeleton: bpy.types.Object) -> None:
+    """Delete the skeleton's control rig containers and the objects grouped under them."""
+    containers = [
+        child
+        for child in skeleton.children
+        if CONTROL_RIG_CONTAINER_PROPERTY_NAME in child
+    ]
+    for container in containers:
+        for obj in [*container.children_recursive, container]:
+            _remove_object(obj)
 
 
 def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
@@ -2124,7 +2138,7 @@ def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
             elif getattr(constraint, "subtarget", None) in control_bone_names:
                 pose_bone.constraints.remove(constraint)
     for curve_object in spine_curves:
-        _remove_curve_object(curve_object)
+        _remove_object(curve_object)
     if not control_bone_names:
         return
     for bone in skeleton.data.bones:

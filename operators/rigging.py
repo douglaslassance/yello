@@ -509,28 +509,31 @@ class BuildControlRigOperator(bpy.types.Operator):
         rigging.build_hitbox_control_bones(skeleton.data, hitbox_bone_data)
         bpy.ops.object.mode_set(mode="OBJECT")
 
+        prefix = skeleton.name
         shapes = {
             "circle": rigging.get_or_create_shape(
-                "Circle_Shape", rigging.create_circle_shape
+                f"{prefix}_Circle_Shape", rigging.create_circle_shape
             ),
-            "box": rigging.get_or_create_shape("Box_Shape", rigging.create_box_shape),
+            "box": rigging.get_or_create_shape(
+                f"{prefix}_Box_Shape", rigging.create_box_shape
+            ),
             "diamond": rigging.get_or_create_shape(
-                "Diamond_Shape", rigging.create_diamond_shape
+                f"{prefix}_Diamond_Shape", rigging.create_diamond_shape
             ),
             "sphere": rigging.get_or_create_shape(
-                "Sphere_Shape", rigging.create_sphere_shape
+                f"{prefix}_Sphere_Shape", rigging.create_sphere_shape
             ),
             "square": rigging.get_or_create_shape(
-                "Square_Shape", rigging.create_square_shape
+                f"{prefix}_Square_Shape", rigging.create_square_shape
             ),
             "master": rigging.get_or_load_shape(
-                "base_controller.034", "base_controller.034"
+                "base_controller.034", f"{prefix}_Master_Shape"
             ),
             "pelvis_hips": rigging.get_or_load_shape(
-                "other_controller.003", "other_controller.003"
+                "other_controller.003", f"{prefix}_Pelvis_Shape"
             ),
             "hitbox": rigging.get_or_load_shape(
-                "other_controller.002", "other_controller.002"
+                "other_controller.002", f"{prefix}_Hitbox_Shape"
             ),
         }
         shapes_container = rigging.get_or_create_control_rig_container(
@@ -596,10 +599,7 @@ class RemoveControlRigOperator(bpy.types.Operator):
             return {"CANCELLED"}
         bpy.ops.object.mode_set(mode="POSE")
         rigging.remove_control_rig_bones(skeleton)
-        for container_name in ("Shapes", "Curves"):
-            container = bpy.data.objects.get(container_name)
-            if container:
-                bpy.data.objects.remove(container, do_unlink=True)
+        rigging.remove_control_rig_containers(skeleton)
         if rigging.SYSTEMS_PROPERTY_NAME in skeleton.data:
             del skeleton.data[rigging.SYSTEMS_PROPERTY_NAME]
         self.report({"INFO"}, f"Removed {len(control_bone_names)} control rig bones.")
