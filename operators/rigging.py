@@ -535,7 +535,7 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         context.view_layer.objects.active = skeleton
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.wire_deform_constraints(skeleton, systems, self.mode)
+        rigging.wire_deform_constraints(skeleton, systems)
         rigging.wire_hitbox_constraints(skeleton, hitbox_bone_names)
         bpy.ops.object.mode_set(mode="OBJECT")
 
