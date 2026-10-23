@@ -6,6 +6,7 @@ from bpy_extras.io_utils import ImportHelper
 
 from ..contexts import (
     AnimationContext,
+    FrameRangeContext,
     MutedFcurvesContext,
     SelectionContext,
     VisibleContext,
@@ -417,35 +418,36 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
         )
         first_target_action = None
         baked = 0
-        for source_action in actions_to_bake:
-            if source_action is None:
-                continue
-            animation.assign_action(source, source_action)
+        with FrameRangeContext():
+            for source_action in actions_to_bake:
+                if source_action is None:
+                    continue
+                animation.assign_action(source, source_action)
 
-            frame_start, frame_end = source_action.frame_range
-            context.scene.frame_start = int(frame_start)
-            context.scene.frame_end = int(frame_end)
+                frame_start, frame_end = source_action.frame_range
+                context.scene.frame_start = int(frame_start)
+                context.scene.frame_end = int(frame_end)
 
-            if target.animation_data is None:
-                target.animation_data_create()
-            target.animation_data.action = None
-            bpy.ops.nla.bake(
-                frame_start=int(frame_start),
-                frame_end=int(frame_end),
-                only_selected=True,
-                visual_keying=True,
-                clear_constraints=False,
-                clear_parents=False,
-                use_current_action=False,
-                bake_types={"POSE"},
-            )
-            new_action = target.animation_data.action
-            if new_action is not None:
-                new_action.name = source_action.name
-                new_action.use_fake_user = True
-                baked += 1
-                if first_target_action is None:
-                    first_target_action = new_action
+                if target.animation_data is None:
+                    target.animation_data_create()
+                target.animation_data.action = None
+                bpy.ops.nla.bake(
+                    frame_start=int(frame_start),
+                    frame_end=int(frame_end),
+                    only_selected=True,
+                    visual_keying=True,
+                    clear_constraints=False,
+                    clear_parents=False,
+                    use_current_action=False,
+                    bake_types={"POSE"},
+                )
+                new_action = target.animation_data.action
+                if new_action is not None:
+                    new_action.name = source_action.name
+                    new_action.use_fake_user = True
+                    baked += 1
+                    if first_target_action is None:
+                        first_target_action = new_action
 
         bpy.ops.object.mode_set(mode="OBJECT")
         rigging.remove_retarget_constraints(target)
