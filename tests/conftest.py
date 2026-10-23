@@ -41,6 +41,8 @@ def _install_blender_stubs():
             importlib.import_module("bpy")
         except ImportError:
             bpy = types.ModuleType("bpy")
+            # pytest imports the add-on __init__.py as the root package, which reads bpy.app.version.
+            bpy.app = types.SimpleNamespace(version=(4, 2, 0))
             bpy.types = _StubTypes("bpy.types")
             bpy.props = types.ModuleType("bpy.props")
             sys.modules["bpy"] = bpy
