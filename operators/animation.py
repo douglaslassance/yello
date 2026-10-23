@@ -402,8 +402,10 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
 
         context.view_layer.objects.active = target
         bpy.ops.object.mode_set(mode="POSE")
-        for bone in target.data.bones:
-            bone.select = bone.name in constrained
+        for pose_bone in target.pose.bones:
+            # Blender 5.0 moved pose selection from Bone to PoseBone.
+            selectable = pose_bone if hasattr(pose_bone, "select") else pose_bone.bone
+            selectable.select = pose_bone.name in constrained
 
         if source.animation_data is None:
             source.animation_data_create()
