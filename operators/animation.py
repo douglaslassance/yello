@@ -6,6 +6,7 @@ from bpy_extras.io_utils import ImportHelper
 
 from ..contexts import (
     AnimationContext,
+    FrameRangeContext,
     MutedFcurvesContext,
     SelectionContext,
     VisibleContext,
@@ -45,9 +46,7 @@ class ExportAnimationOperator(bpy.types.Operator):
             for obj in list(objects):
                 objects.extend(misc.get_children(obj, recursive=True))
         filename = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
-        io.export_fbx(
-            objects, filename, animations=True, object_types={"ARMATURE"}
-        )
+        io.export_fbx(objects, filename, animations=True, object_types={"ARMATURE"})
         return {"FINISHED"}
 
 
@@ -315,22 +314,15 @@ class CleanupOrphanFcurvesOperator(bpy.types.Operator):
 
 
 class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
-    """Import animation from a file and retarget it onto the active control rig.
-
-    The active object must be a control rig. The source skeleton is classified
-    with Ollama, its scale is normalized to the target, and every source action
-    is baked onto the control bones through temporary world-space constraints.
-    The imported source objects and actions are removed afterwards, leaving only
-    the baked actions on the control rig.
-    """
+    """Import animation from a file and retarget it onto the active armature."""
 
     bl_idname = "armature.import_animation"
     bl_label = "Import Animation"
     bl_description = (
         "Import an FBX, glTF, or blend file and retarget all of its actions onto "
-        "the active control rig. Bones are matched by role, the source is scaled "
-        "to fit, and each action is baked onto the controls through temporary "
-        "constraints. Use this to bring in external animation from another rig."
+        "the active armature. Both skeletons are classified so bones are matched "
+        "by role. An armature with a control rig receives the animation on its "
+        "controls, any other armature on its deform bones."
     )
     bl_options = {"REGISTER", "UNDO"}
 
@@ -340,16 +332,55 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
         options={"HIDDEN"},
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    method: bpy.props.EnumProperty(
+        name="Method",
+        description="How the imported animation reaches the target bones",
+        items=[
+            (
+                animation.IMPORT_METHOD_BAKE,
+                "Bake",
+                "Drive the target bones from the source skeleton through temporary "
+                "world space constraints and bake the result. The source is scaled to "
+                "the target first, so different proportions and rest poses line up",
+            ),
+            (
+                animation.IMPORT_METHOD_COPY,
+                "Copy",
+                "Copy the animation curves onto the matching bones as they are. Exact "
+                "and fast when both skeletons share proportions, rest pose and bone "
+                "orientations",
+            ),
+        ],
+        default=animation.IMPORT_METHOD_BAKE,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    reclassify: bpy.props.BoolProperty(
+        name="Re-classify Bones",
+        description=(
+            "Classify the target's bones again with Ollama instead of reusing the "
+            "result stored on the armature. Enable this after adding, removing, or "
+            "renaming bones"
+        ),
+        default=False,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
-        if obj is None or obj.type != "ARMATURE" or obj.mode != "OBJECT":
-            return False
-        return any(rigging.CONTROL_SUFFIX in bone.name for bone in obj.data.bones)
+        return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
 
     def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
         if not ollama.reachable():
-            self.layout.label(text="Ollama is not running.", icon="ERROR")
+            layout.label(text="Ollama is not running.", icon="ERROR")
+        layout.prop(self, "method")
+        target = context.object
+        if (
+            target is not None
+            and not rigging.has_control_rig(target)
+            and rigging.load_systems(target) is not None
+        ):
+            layout.prop(self, "reclassify")
 
     def _cleanup(
         self,
@@ -363,11 +394,107 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
             if action.name in bpy.data.actions:
                 bpy.data.actions.remove(action)
 
+    def _copy(
+        self,
+        target: bpy.types.Object,
+        source: bpy.types.Object,
+        source_systems: list[rigging.SystemDict],
+        target_systems: list[rigging.SystemDict] | None,
+        actions: list[bpy.types.Action],
+    ) -> list[tuple[bpy.types.Action, str]] | None:
+        """Copy each action's curves onto the target bones bound to the source."""
+        bone_mapping = {
+            binding.source_bone: binding.target_bone
+            for binding in rigging.retarget_bindings(
+                target, source_systems, target_systems
+            )
+            if binding.source_bone
+            and binding.source_bone in source.pose.bones
+            and binding.target_bone in target.pose.bones
+        }
+        if not bone_mapping:
+            return None
+        animation.match_rotation_modes(source, target, bone_mapping)
+        copied = []
+        for source_action in actions:
+            new_action = animation.copy_and_remap_animation(
+                source_action, source_action.name, bone_mapping
+            )
+            if new_action is not None:
+                new_action.use_fake_user = True
+                copied.append((new_action, source_action.name))
+        return copied
+
+    def _bake(
+        self,
+        context: bpy.types.Context,
+        target: bpy.types.Object,
+        source: bpy.types.Object,
+        source_systems: list[rigging.SystemDict],
+        target_systems: list[rigging.SystemDict] | None,
+        actions: list[bpy.types.Action],
+    ) -> list[tuple[bpy.types.Action, str]] | None:
+        """Bake each action onto the target through temporary constraints."""
+        constrained = rigging.bind_to_source(
+            target, source, source_systems, target_systems
+        )
+        if not constrained:
+            return None
+
+        context.view_layer.objects.active = target
+        bpy.ops.object.mode_set(mode="POSE")
+        for pose_bone in target.pose.bones:
+            # Blender 5.0 moved pose selection from Bone to PoseBone.
+            selectable = pose_bone if hasattr(pose_bone, "select") else pose_bone.bone
+            selectable.select = pose_bone.name in constrained
+
+        baked = []
+        with FrameRangeContext():
+            for source_action in actions:
+                animation.assign_action(source, source_action)
+
+                frame_start, frame_end = source_action.frame_range
+                context.scene.frame_start = int(frame_start)
+                context.scene.frame_end = int(frame_end)
+
+                if target.animation_data is None:
+                    target.animation_data_create()
+                target.animation_data.action = None
+                bpy.ops.nla.bake(
+                    frame_start=int(frame_start),
+                    frame_end=int(frame_end),
+                    only_selected=True,
+                    visual_keying=True,
+                    clear_constraints=False,
+                    clear_parents=False,
+                    use_current_action=False,
+                    bake_types={"POSE"},
+                )
+                new_action = target.animation_data.action
+                if new_action is not None:
+                    new_action.use_fake_user = True
+                    baked.append((new_action, source_action.name))
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+        rigging.remove_retarget_constraints(target)
+        return baked
+
     def execute(self, context: bpy.types.Context) -> set[str]:
         target = context.object
         if not ollama.reachable():
             self.report({"ERROR"}, "Ollama is not running.")
             return {"CANCELLED"}
+
+        target_systems = rigging.load_systems(target)
+        if not rigging.has_control_rig(target) and (
+            target_systems is None or self.reclassify
+        ):
+            target_systems, message, raw = rigging.classify_skeleton(target)
+            self.report({"INFO"}, f"Ollama: {raw}")
+            if not target_systems:
+                self.report({"ERROR"}, message)
+                return {"CANCELLED"}
+            rigging.store_systems(target, target_systems)
 
         extension = os.path.splitext(self.filepath)[1].lower()
         existing_actions = set(bpy.data.actions)
@@ -389,71 +516,40 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
             self.report({"ERROR"}, "No armature found in the imported file.")
             return {"CANCELLED"}
 
-        systems, message, raw = rigging.classify_skeleton(source)
+        source_systems, message, raw = rigging.classify_skeleton(source)
         self.report({"INFO"}, f"Ollama: {raw}")
-        if not systems:
+        if not source_systems:
             self._cleanup(imported, source_actions)
             self.report({"ERROR"}, message)
             return {"CANCELLED"}
 
-        constrained = rigging.bind_controls_to_source(target, source, systems)
-        if not constrained:
-            self._cleanup(imported, source_actions)
-            self.report({"ERROR"}, "No matching control bones to retarget.")
-            return {"CANCELLED"}
-
-        context.view_layer.objects.active = target
-        bpy.ops.object.mode_set(mode="POSE")
-        for bone in target.data.bones:
-            bone.select = bone.name in constrained
-
         if source.animation_data is None:
             source.animation_data_create()
-
-        actions_to_bake = source_actions or (
+        actions = source_actions or (
             [source.animation_data.action] if source.animation_data.action else []
         )
-        first_target_action = None
-        baked = 0
-        for source_action in actions_to_bake:
-            if source_action is None:
-                continue
-            animation.assign_action(source, source_action)
 
-            frame_start, frame_end = source_action.frame_range
-            context.scene.frame_start = int(frame_start)
-            context.scene.frame_end = int(frame_end)
-
-            if target.animation_data is None:
-                target.animation_data_create()
-            target.animation_data.action = None
-            bpy.ops.nla.bake(
-                frame_start=int(frame_start),
-                frame_end=int(frame_end),
-                only_selected=True,
-                visual_keying=True,
-                clear_constraints=False,
-                clear_parents=False,
-                use_current_action=False,
-                bake_types={"POSE"},
+        if self.method == animation.IMPORT_METHOD_COPY:
+            retargeted = self._copy(
+                target, source, source_systems, target_systems, actions
             )
-            new_action = target.animation_data.action
-            if new_action is not None:
-                new_action.name = source_action.name
-                new_action.use_fake_user = True
-                baked += 1
-                if first_target_action is None:
-                    first_target_action = new_action
-
-        bpy.ops.object.mode_set(mode="OBJECT")
-        rigging.remove_retarget_constraints(target)
+        else:
+            retargeted = self._bake(
+                context, target, source, source_systems, target_systems, actions
+            )
         self._cleanup(imported, source_actions)
+        if retargeted is None:
+            self.report({"ERROR"}, "No matching bones to retarget.")
+            return {"CANCELLED"}
 
-        if first_target_action is not None:
-            animation.assign_action(target, first_target_action)
+        # Renamed only once cleanup has freed the source action names.
+        for retargeted_action, name in retargeted:
+            retargeted_action.name = name
+        if retargeted:
+            animation.assign_action(target, retargeted[0][0])
 
         context.view_layer.objects.active = target
-        self.report({"INFO"}, f"Imported and retargeted {baked} action(s).")
+        self.report({"INFO"}, f"Imported and retargeted {len(retargeted)} action(s).")
         return {"FINISHED"}
 
 
@@ -466,23 +562,45 @@ class ActionSelectionItem(bpy.types.PropertyGroup):
 
 
 class TransferAnimationOperator(bpy.types.Operator):
-    """Transfer animation to selected armatures using Ollama-based bone matching.
-
-    The operator lists all actions in the file as a checklist in the dialog.
-    Bone names are extracted from each action's fcurves, so no source armature
-    is required. Each selected action is copied and remapped for every target
-    armature in the viewport selection.
-    """
+    """Transfer actions from the file to the selected armatures using Ollama-based bone matching."""
 
     bl_idname = "armature.transfer_animation"
     bl_label = "Transfer Animation"
     bl_description = (
-        "Copy actions from the file onto the selected armatures by matching bones "
-        "and rewriting fcurves, without baking or scaling. Matches control bones "
-        "when present, otherwise deform bones. Best for rigs that already share a "
-        "rest pose. To retarget external animation onto a control rig, use Import "
-        "Animation instead."
+        "Transfer actions from the file onto the selected armatures, matching bones "
+        "by role. Matches control bones when present, otherwise deform bones. To "
+        "retarget external animation onto a control rig, use Import Animation "
+        "instead."
     )
+
+    method: bpy.props.EnumProperty(
+        name="Method",
+        description=(
+            "How the animation reaches the target. Copy rewrites the action's curves "
+            "as they are; bake plays the action on its source armature and keys the "
+            "result"
+        ),
+        items=[
+            (
+                animation.TRANSFER_METHOD_COPY,
+                "Copy",
+                "Rename the action's fcurves onto the matched bones and keep every key "
+                "as it is. Fast and lossless, but the target must share the source's "
+                "rest pose, bone axes, rotation mode and proportions. Use this for "
+                "variants of the same skeleton",
+            ),
+            (
+                animation.TRANSFER_METHOD_BAKE,
+                "Bake",
+                "Play the action on its source armature in the scene and key the "
+                "matched bones on every frame. Differences in bone axes, rolls, "
+                "rotation modes and proportions are compensated, and root motion is "
+                "scaled to fit. Both rigs should still rest in a similar pose, such as "
+                "a T-pose",
+            ),
+        ],
+        default=animation.TRANSFER_METHOD_COPY,
+    )  # pyright: ignore [reportInvalidTypeForm]
 
     action_items: bpy.props.CollectionProperty(
         type=ActionSelectionItem
@@ -507,6 +625,7 @@ class TransferAnimationOperator(bpy.types.Operator):
         layout = self.layout
         if not ollama.reachable():
             layout.label(text="Ollama is not running.", icon="ERROR")
+        layout.prop(self, "method")
         layout.label(text="Actions to transfer:")
         for item in self.action_items:
             row = layout.row()
@@ -527,9 +646,11 @@ class TransferAnimationOperator(bpy.types.Operator):
             self.report({"WARNING"}, "No actions selected.")
             return {"CANCELLED"}
 
+        armatures = [obj for obj in context.scene.objects if obj.type == "ARMATURE"]
         total_transferred = 0
         for target in targets:
             target_bone_names = [bone.name for bone in target.data.bones]
+            candidates = [armature for armature in armatures if armature != target]
             first_target_action = None
 
             for action in actions:
@@ -537,6 +658,17 @@ class TransferAnimationOperator(bpy.types.Operator):
                 if not source_bone_names:
                     self.report({"WARNING"}, f"{action.name}: no bone fcurves found.")
                     continue
+
+                source = None
+                if self.method == animation.TRANSFER_METHOD_BAKE:
+                    source = animation.find_source_armature(action, candidates)
+                    if source is None:
+                        self.report(
+                            {"WARNING"},
+                            f"{target.name} / {action.name}: no armature in the "
+                            "scene holds the action's bones to bake from.",
+                        )
+                        continue
 
                 pairs, message, raw = rigging.match_bones(
                     source_bone_names, target_bone_names
@@ -552,9 +684,14 @@ class TransferAnimationOperator(bpy.types.Operator):
 
                 bone_mapping = dict(pairs)
                 target_action_name = f"{target.name}_{action.name}"
-                target_action = animation.copy_and_remap_animation(
-                    action, target_action_name, bone_mapping
-                )
+                if self.method == animation.TRANSFER_METHOD_BAKE:
+                    target_action = animation.bake_remapped_animation(
+                        source, action, target, target_action_name, bone_mapping
+                    )
+                else:
+                    target_action = animation.copy_and_remap_animation(
+                        action, target_action_name, bone_mapping
+                    )
                 if target_action is None:
                     continue
 
