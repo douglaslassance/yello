@@ -1001,7 +1001,10 @@ def _followed_bones(system: SystemDict) -> list[tuple[str, str]]:
             (f"Toe_Control.{side}", system.get("toe")),
         ]
     elif system_type == "head":
-        pairs = [("Neck_Control", system.get("neck")), ("Head_Control", system.get("head"))]
+        pairs = [
+            ("Neck_Control", system.get("neck")),
+            ("Head_Control", system.get("head")),
+        ]
     elif system_type == "finger":
         pairs = [
             (_finger_ctrl_name(system, i), bone_name)
@@ -1354,13 +1357,14 @@ def get_skinned_meshes(skeleton: bpy.types.Object) -> list[bpy.types.Object]:
         if obj.type != "MESH" or obj.hide_viewport:
             continue
         has_armature_modifier = any(
-            mod.type == "ARMATURE" and mod.object == skeleton
-            for mod in obj.modifiers
+            mod.type == "ARMATURE" and mod.object == skeleton for mod in obj.modifiers
         )
         has_matching_vertex_groups = any(
             vertex_group.name in bone_names for vertex_group in obj.vertex_groups
         )
-        if has_armature_modifier or (obj.parent == skeleton and has_matching_vertex_groups):
+        if has_armature_modifier or (
+            obj.parent == skeleton and has_matching_vertex_groups
+        ):
             result.append(obj)
     return result
 
@@ -1730,7 +1734,9 @@ def apply_adaptive_control_scales(
         if not pose_bone.custom_shape:
             continue
         pose_bone.use_custom_shape_bone_size = False
-        shape_half_extent = compute_shape_perpendicular_half_extent(pose_bone.custom_shape)
+        shape_half_extent = compute_shape_perpendicular_half_extent(
+            pose_bone.custom_shape
+        )
         if pose_bone.name == "World_Control":
             world_scale = max(extents[0], extents[1]) / 2.0 * 1.30 / shape_half_extent
             pose_bone.custom_shape_scale_xyz = (
@@ -1857,7 +1863,6 @@ def _add_copy_transforms(
     constraint.target = skeleton
     constraint.subtarget = control_bone
     constraint.target_space, constraint.owner_space = "WORLD", "WORLD"
-
 
 
 def _rest_pole_angle(
