@@ -81,6 +81,28 @@ class CursorContext:
         bpy.context.scene.cursor.location = self.location
 
 
+class FrameRangeContext:
+    """A context that will restore the scene frame range on exit."""
+
+    def __init__(self) -> None:
+        scene = bpy.context.scene
+        self.frame_start = scene.frame_start
+        self.frame_end = scene.frame_end
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
+    ) -> None:
+        scene = bpy.context.scene
+        scene.frame_start = self.frame_start
+        scene.frame_end = self.frame_end
+
+
 class ModeContext:
     """A context that will switch mode and revert to the previous mode on exit."""
 
