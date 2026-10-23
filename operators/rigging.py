@@ -545,7 +545,7 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode="POSE")
         rigging.setup_control_rig_pose(skeleton, systems, shapes)
-        rigging.setup_spine_splineik(
+        spine_curve = rigging.setup_spine_splineik(
             skeleton, systems, context, bone_data, curves_container
         )
         rigging.apply_adaptive_control_scales(skeleton, systems)
@@ -557,7 +557,7 @@ class BuildControlRigOperator(bpy.types.Operator):
 
         context.view_layer.objects.active = skeleton
         bpy.ops.object.mode_set(mode="POSE")
-        rigging.wire_deform_constraints(skeleton, systems)
+        rigging.wire_deform_constraints(skeleton, systems, spine_curve)
         rigging.wire_hitbox_constraints(skeleton, hitbox_bone_names)
         bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -596,9 +596,6 @@ class RemoveControlRigOperator(bpy.types.Operator):
             return {"CANCELLED"}
         bpy.ops.object.mode_set(mode="POSE")
         rigging.remove_control_rig_bones(skeleton)
-        spine_curve = bpy.data.objects.get("Spine_Curve")
-        if spine_curve:
-            bpy.data.objects.remove(spine_curve, do_unlink=True)
         for container_name in ("Shapes", "Curves"):
             container = bpy.data.objects.get(container_name)
             if container:
