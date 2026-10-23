@@ -15,9 +15,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
         "Generate normals by projecting them from a smoothed version of the model"
     )
 
-    iterations: bpy.props.IntProperty(
-        name="Repeat", default=8
-    )  # pyright: ignore [reportInvalidTypeForm]
+    iterations: bpy.props.IntProperty(name="Repeat", default=8)  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
