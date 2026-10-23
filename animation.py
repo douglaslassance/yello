@@ -356,7 +356,9 @@ def bake_remapped_animation(
 
     target_world_inverted = target.matrix_world.inverted()
     target_world_rotation_inverted = target.matrix_world.to_quaternion().inverted()
-    ordered_bones = sorted(target.data.bones, key=lambda bone: len(bone.parent_recursive))
+    ordered_bones = sorted(
+        target.data.bones, key=lambda bone: len(bone.parent_recursive)
+    )
     identity = mathutils.Matrix.Identity(4)
     bases = {name: [] for name in target_to_source}
     for frame_index in range(len(frames)):
