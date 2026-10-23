@@ -1710,31 +1710,27 @@ def setup_spine_splineik(
     context: bpy.types.Context,
     bone_data: BoneDataDict,
     container: bpy.types.Object | None = None,
-) -> None:
+) -> bpy.types.Object | None:
     """Create the Spline IK curve for the spine, hooked to CR_Hips and CR_Chest.
 
     The curve is parented to container (or skeleton if None). The Spline IK
     constraint itself is added on the deform skeleton side in wire_deform_constraints.
     Should be called after setup_control_rig_pose while skeleton is in POSE mode.
-    Returns with skeleton in POSE mode.
+    Returns the curve, or None without a spine, with skeleton in POSE mode.
     """
     spine_sys = next((s for s in systems if s["type"] == "spine"), None)
     if spine_sys is None:
-        return
+        return None
 
     chain = spine_sys.get("vertebrae") or []
     if not chain or chain[0] not in bone_data or chain[-1] not in bone_data:
-        return
+        return None
 
     matrix_world = skeleton.matrix_world
     start_pos = matrix_world @ bone_data[chain[0]]["head"]
     end_pos = matrix_world @ bone_data[chain[-1]]["tail"]
 
-    curve_name = "Spine_Curve"
-    old = bpy.data.objects.get(curve_name)
-    if old:
-        bpy.data.objects.remove(old, do_unlink=True)
-
+    curve_name = f"{skeleton.name}_Spine_Curve"
     curve_data = bpy.data.curves.new(curve_name, "CURVE")
     curve_data.dimensions = "3D"
     curve_data.resolution_u = 12
@@ -1782,6 +1778,7 @@ def setup_spine_splineik(
     curve_obj.hide_viewport = True
     context.view_layer.objects.active = skeleton
     bpy.ops.object.mode_set(mode="POSE")
+    return curve_obj
 
 
 def _add_copy_transforms(
@@ -1804,9 +1801,11 @@ def wire_deform_constraints(
     armature: bpy.types.Object,
     systems: list[SystemDict],
     mode: str = BUILD_MODE_STRICT,
+    spine_curve: bpy.types.Object | None = None,
 ) -> None:
     """Add Copy Transforms constraints on the skeleton wired to each control bone.
 
+    The last vertebra gets a Spline IK constraint following spine_curve.
     In loose mode the pelvis is wired to the Hips_Mechanism offset bone (when it
     exists) instead of Hips_Control directly, so its rest orientation is
     preserved rather than snapped to the hip control's downward orientation.
@@ -1826,12 +1825,11 @@ def wire_deform_constraints(
                 _add_copy_transforms(armature, system["pelvis"], pelvis_control)
             vertebrae = system.get("vertebrae") or []
             if vertebrae:
-                curve_obj = bpy.data.objects.get("Spine_Curve")
                 last_pose_bone = armature.pose.bones.get(vertebrae[-1])
-                if curve_obj and last_pose_bone:
+                if spine_curve and last_pose_bone:
                     constraint = last_pose_bone.constraints.new("SPLINE_IK")
                     constraint.name = CONTROL_RIG_CONSTRAINT_NAME
-                    constraint.target = curve_obj
+                    constraint.target = spine_curve
                     constraint.chain_count = len(vertebrae)
                     constraint.use_chain_offset = False
                     constraint.use_even_divisions = False
