@@ -34,16 +34,18 @@ def _load_prompt(filename: str) -> str:
 
 
 def _chat(system: str, user: str) -> dict:
-    payload = json.dumps({
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "stream": False,
-        "format": "json",
-        "options": {"temperature": 0.0},
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": MODEL,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.0},
+        }
+    ).encode()
     req = urllib.request.Request(
         f"{OLLAMA_URL}/api/chat",
         data=payload,
@@ -90,7 +92,9 @@ def _format_hierarchy(bones: list[str], parents: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def _classify_bones(bones: list[str], parents: dict[str, str] | None = None) -> list[dict]:
+def _classify_bones(
+    bones: list[str], parents: dict[str, str] | None = None
+) -> list[dict]:
     """Call classify_bones prompts and return systems list.
 
     When parents is given, the bone hierarchy is included so the model can order
@@ -128,29 +132,60 @@ class TestMatchBones(unittest.TestCase):
     def test_no_hallucinated_target_names(self):
         """Every target value must come from the target list."""
         source = ["Chest_Control", "Pelvis_Control", "UpperArm_Control.L"]
-        target = ["Torso_Control", "Hips_Control", "Pelvis_Control", "UpperArm_Control.L"]
+        target = [
+            "Torso_Control",
+            "Hips_Control",
+            "Pelvis_Control",
+            "UpperArm_Control.L",
+        ]
         target_set = set(target)
         mapping = _match_bones(source, target)
         for source_bone, target_bone in mapping.items():
-            self.assertIn(target_bone, target_set, f"{source_bone} mapped to hallucinated name {target_bone!r}")
+            self.assertIn(
+                target_bone,
+                target_set,
+                f"{source_bone} mapped to hallucinated name {target_bone!r}",
+            )
 
     def test_full_rig_transfer(self):
         """Full control rig transfer: exact matches stay, Chest maps to Torso, Pelvis stays."""
         source = [
-            "Chest_Control", "Pelvis_Control", "Shoulder_Control.L", "Shoulder_Control.R",
-            "UpperArm_Control.L", "UpperArm_Control.R", "Forearm_Control.L", "Forearm_Control.R",
-            "Hand_Control.L", "Hand_Control.R", "Head_Control",
-            "Leg_Pole_Control.L", "Leg_Pole_Control.R",
-            "Leg_Target_Control.L", "Leg_Target_Control.R",
+            "Chest_Control",
+            "Pelvis_Control",
+            "Shoulder_Control.L",
+            "Shoulder_Control.R",
+            "UpperArm_Control.L",
+            "UpperArm_Control.R",
+            "Forearm_Control.L",
+            "Forearm_Control.R",
+            "Hand_Control.L",
+            "Hand_Control.R",
+            "Head_Control",
+            "Leg_Pole_Control.L",
+            "Leg_Pole_Control.R",
+            "Leg_Target_Control.L",
+            "Leg_Target_Control.R",
         ]
         target = [
-            "Torso_Control", "Pelvis_Control", "Hips_Control",
-            "Shoulder_Control.L", "Shoulder_Control.R",
-            "UpperArm_Control.L", "UpperArm_Control.R", "Forearm_Control.L", "Forearm_Control.R",
-            "Hand_Control.L", "Hand_Control.R", "Head_Control", "Neck_Control",
-            "Leg_Pole_Control.L", "Leg_Pole_Control.R",
-            "Leg_Target_Control.L", "Leg_Target_Control.R",
-            "IK_Target_Control.L", "IK_Target_Control.R",
+            "Torso_Control",
+            "Pelvis_Control",
+            "Hips_Control",
+            "Shoulder_Control.L",
+            "Shoulder_Control.R",
+            "UpperArm_Control.L",
+            "UpperArm_Control.R",
+            "Forearm_Control.L",
+            "Forearm_Control.R",
+            "Hand_Control.L",
+            "Hand_Control.R",
+            "Head_Control",
+            "Neck_Control",
+            "Leg_Pole_Control.L",
+            "Leg_Pole_Control.R",
+            "Leg_Target_Control.L",
+            "Leg_Target_Control.R",
+            "IK_Target_Control.L",
+            "IK_Target_Control.R",
         ]
         target_set = set(target)
         mapping = _match_bones(source, target)
@@ -160,7 +195,11 @@ class TestMatchBones(unittest.TestCase):
         self.assertEqual(mapping.get("Leg_Target_Control.L"), "Leg_Target_Control.L")
         self.assertEqual(mapping.get("Leg_Target_Control.R"), "Leg_Target_Control.R")
         for source_bone, target_bone in mapping.items():
-            self.assertIn(target_bone, target_set, f"Hallucinated: {source_bone} -> {target_bone!r}")
+            self.assertIn(
+                target_bone,
+                target_set,
+                f"Hallucinated: {source_bone} -> {target_bone!r}",
+            )
 
     def test_twist_bones_ignored(self):
         """Twist bones must never appear in the output."""
@@ -177,16 +216,40 @@ class TestMatchBones(unittest.TestCase):
 class TestClassifyBones(unittest.TestCase):
 
     MIXAMO_BONES = [
-        "Hips", "Spine", "Spine1", "Spine2",
-        "Neck", "Head",
-        "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand",
-        "RightShoulder", "RightArm", "RightForeArm", "RightHand",
-        "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase",
-        "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase",
-        "LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3",
-        "LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3",
-        "RightHandThumb1", "RightHandThumb2", "RightHandThumb3",
-        "RightHandIndex1", "RightHandIndex2", "RightHandIndex3",
+        "Hips",
+        "Spine",
+        "Spine1",
+        "Spine2",
+        "Neck",
+        "Head",
+        "LeftShoulder",
+        "LeftArm",
+        "LeftForeArm",
+        "LeftHand",
+        "RightShoulder",
+        "RightArm",
+        "RightForeArm",
+        "RightHand",
+        "LeftUpLeg",
+        "LeftLeg",
+        "LeftFoot",
+        "LeftToeBase",
+        "RightUpLeg",
+        "RightLeg",
+        "RightFoot",
+        "RightToeBase",
+        "LeftHandThumb1",
+        "LeftHandThumb2",
+        "LeftHandThumb3",
+        "LeftHandIndex1",
+        "LeftHandIndex2",
+        "LeftHandIndex3",
+        "RightHandThumb1",
+        "RightHandThumb2",
+        "RightHandThumb3",
+        "RightHandIndex1",
+        "RightHandIndex2",
+        "RightHandIndex3",
     ]
 
     def _get_systems_by_type(self, systems: list[dict]) -> dict:
@@ -231,15 +294,24 @@ class TestClassifyBones(unittest.TestCase):
                 if key in ("type", "side", "name", "parent"):
                     continue
                 if isinstance(value, str):
-                    self.assertIn(value, bone_set, f"Hallucinated bone {value!r} in field {key!r}")
+                    self.assertIn(
+                        value, bone_set, f"Hallucinated bone {value!r} in field {key!r}"
+                    )
                 elif isinstance(value, list):
                     for bone in value:
-                        self.assertIn(bone, bone_set, f"Hallucinated bone {bone!r} in field {key!r}")
+                        self.assertIn(
+                            bone,
+                            bone_set,
+                            f"Hallucinated bone {bone!r} in field {key!r}",
+                        )
 
     def test_upper_arm_not_shoulder(self):
         """LeftArm must be classified as upper_arm, not shoulder."""
         systems = _classify_bones(self.MIXAMO_BONES)
-        left_arm = next((s for s in systems if s.get("type") == "arm" and s.get("side") == "L"), None)
+        left_arm = next(
+            (s for s in systems if s.get("type") == "arm" and s.get("side") == "L"),
+            None,
+        )
         self.assertIsNotNone(left_arm)
         self.assertEqual(left_arm.get("upper_arm"), "LeftArm")
         self.assertNotEqual(left_arm.get("shoulder"), "LeftArm")
@@ -258,28 +330,75 @@ class TestClassifyMetaHuman(unittest.TestCase):
     METAHUMAN_BONES = [
         "root",
         "pelvis",
-        "spine_01", "spine_02", "spine_03", "spine_04", "spine_05",
-        "neck_01", "neck_02", "head",
-        "clavicle_l", "upperarm_l", "upperarm_twist_01_l",
-        "lowerarm_l", "lowerarm_twist_01_l", "hand_l",
-        "clavicle_r", "upperarm_r", "upperarm_twist_01_r",
-        "lowerarm_r", "lowerarm_twist_01_r", "hand_r",
-        "thigh_l", "thigh_twist_01_l", "calf_l", "calf_twist_01_l",
-        "foot_l", "ball_l",
-        "thigh_r", "thigh_twist_01_r", "calf_r", "calf_twist_01_r",
-        "foot_r", "ball_r",
-        "thumb_01_l", "thumb_02_l", "thumb_03_l",
-        "index_01_l", "index_02_l", "index_03_l",
-        "middle_01_l", "middle_02_l", "middle_03_l",
-        "ring_01_l", "ring_02_l", "ring_03_l",
-        "pinky_01_l", "pinky_02_l", "pinky_03_l",
-        "thumb_01_r", "thumb_02_r", "thumb_03_r",
-        "index_01_r", "index_02_r", "index_03_r",
-        "middle_01_r", "middle_02_r", "middle_03_r",
-        "ring_01_r", "ring_02_r", "ring_03_r",
-        "pinky_01_r", "pinky_02_r", "pinky_03_r",
-        "ik_foot_root", "ik_foot_l", "ik_foot_r",
-        "ik_hand_root", "ik_hand_gun", "ik_hand_l", "ik_hand_r",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "spine_04",
+        "spine_05",
+        "neck_01",
+        "neck_02",
+        "head",
+        "clavicle_l",
+        "upperarm_l",
+        "upperarm_twist_01_l",
+        "lowerarm_l",
+        "lowerarm_twist_01_l",
+        "hand_l",
+        "clavicle_r",
+        "upperarm_r",
+        "upperarm_twist_01_r",
+        "lowerarm_r",
+        "lowerarm_twist_01_r",
+        "hand_r",
+        "thigh_l",
+        "thigh_twist_01_l",
+        "calf_l",
+        "calf_twist_01_l",
+        "foot_l",
+        "ball_l",
+        "thigh_r",
+        "thigh_twist_01_r",
+        "calf_r",
+        "calf_twist_01_r",
+        "foot_r",
+        "ball_r",
+        "thumb_01_l",
+        "thumb_02_l",
+        "thumb_03_l",
+        "index_01_l",
+        "index_02_l",
+        "index_03_l",
+        "middle_01_l",
+        "middle_02_l",
+        "middle_03_l",
+        "ring_01_l",
+        "ring_02_l",
+        "ring_03_l",
+        "pinky_01_l",
+        "pinky_02_l",
+        "pinky_03_l",
+        "thumb_01_r",
+        "thumb_02_r",
+        "thumb_03_r",
+        "index_01_r",
+        "index_02_r",
+        "index_03_r",
+        "middle_01_r",
+        "middle_02_r",
+        "middle_03_r",
+        "ring_01_r",
+        "ring_02_r",
+        "ring_03_r",
+        "pinky_01_r",
+        "pinky_02_r",
+        "pinky_03_r",
+        "ik_foot_root",
+        "ik_foot_l",
+        "ik_foot_r",
+        "ik_hand_root",
+        "ik_hand_gun",
+        "ik_hand_l",
+        "ik_hand_r",
     ]
 
     def test_pelvis_is_pelvis_not_vertebra(self):
@@ -293,7 +412,8 @@ class TestClassifyMetaHuman(unittest.TestCase):
         """clavicle_l is the shoulder and upperarm_l is the upper_arm, not vice versa."""
         systems = _classify_bones(self.METAHUMAN_BONES)
         left_arm = next(
-            (s for s in systems if s.get("type") == "arm" and s.get("side") == "L"), None
+            (s for s in systems if s.get("type") == "arm" and s.get("side") == "L"),
+            None,
         )
         self.assertIsNotNone(left_arm)
         self.assertEqual(left_arm.get("upper_arm"), "upperarm_l")
@@ -351,26 +471,56 @@ class TestClassifyMeshy(unittest.TestCase):
 
     MESHY_BONES = [
         "Hips",
-        "Spine", "Spine01", "Spine02",
-        "neck", "Head", "head_end", "headfront",
-        "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand",
-        "RightShoulder", "RightArm", "RightForeArm", "RightHand",
-        "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase",
-        "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase",
+        "Spine",
+        "Spine01",
+        "Spine02",
+        "neck",
+        "Head",
+        "head_end",
+        "headfront",
+        "LeftShoulder",
+        "LeftArm",
+        "LeftForeArm",
+        "LeftHand",
+        "RightShoulder",
+        "RightArm",
+        "RightForeArm",
+        "RightHand",
+        "LeftUpLeg",
+        "LeftLeg",
+        "LeftFoot",
+        "LeftToeBase",
+        "RightUpLeg",
+        "RightLeg",
+        "RightFoot",
+        "RightToeBase",
     ]
 
     MESHY_PARENTS = {
         "Hips": None,
-        "Spine02": "Hips", "Spine01": "Spine02", "Spine": "Spine01",
-        "neck": "Spine", "Head": "neck", "head_end": "Head", "headfront": "Head",
-        "LeftShoulder": "Spine", "LeftArm": "LeftShoulder",
-        "LeftForeArm": "LeftArm", "LeftHand": "LeftForeArm",
-        "RightShoulder": "Spine", "RightArm": "RightShoulder",
-        "RightForeArm": "RightArm", "RightHand": "RightForeArm",
-        "LeftUpLeg": "Hips", "LeftLeg": "LeftUpLeg",
-        "LeftFoot": "LeftLeg", "LeftToeBase": "LeftFoot",
-        "RightUpLeg": "Hips", "RightLeg": "RightUpLeg",
-        "RightFoot": "RightLeg", "RightToeBase": "RightFoot",
+        "Spine02": "Hips",
+        "Spine01": "Spine02",
+        "Spine": "Spine01",
+        "neck": "Spine",
+        "Head": "neck",
+        "head_end": "Head",
+        "headfront": "Head",
+        "LeftShoulder": "Spine",
+        "LeftArm": "LeftShoulder",
+        "LeftForeArm": "LeftArm",
+        "LeftHand": "LeftForeArm",
+        "RightShoulder": "Spine",
+        "RightArm": "RightShoulder",
+        "RightForeArm": "RightArm",
+        "RightHand": "RightForeArm",
+        "LeftUpLeg": "Hips",
+        "LeftLeg": "LeftUpLeg",
+        "LeftFoot": "LeftLeg",
+        "LeftToeBase": "LeftFoot",
+        "RightUpLeg": "Hips",
+        "RightLeg": "RightUpLeg",
+        "RightFoot": "RightLeg",
+        "RightToeBase": "RightFoot",
     }
 
     def test_spine_pelvis_and_vertebrae(self):
@@ -393,14 +543,13 @@ class TestClassifyMeshy(unittest.TestCase):
         systems = _classify_bones(self.MESHY_BONES, self.MESHY_PARENTS)
         spine = next((s for s in systems if s.get("type") == "spine"), None)
         self.assertIsNotNone(spine)
-        self.assertEqual(
-            spine.get("vertebrae"), ["Spine02", "Spine01", "Spine"]
-        )
+        self.assertEqual(spine.get("vertebrae"), ["Spine02", "Spine01", "Spine"])
 
     def test_arms_identified(self):
         systems = _classify_bones(self.MESHY_BONES)
         left_arm = next(
-            (s for s in systems if s.get("type") == "arm" and s.get("side") == "L"), None
+            (s for s in systems if s.get("type") == "arm" and s.get("side") == "L"),
+            None,
         )
         self.assertIsNotNone(left_arm)
         self.assertEqual(left_arm.get("upper_arm"), "LeftArm")
@@ -448,6 +597,7 @@ class TestClassifyMeshy(unittest.TestCase):
                         self.assertIn(
                             bone, bone_set, f"Hallucinated bone {bone!r} in {key!r}"
                         )
+
 
 if __name__ == "__main__":
     unittest.main()

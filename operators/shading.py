@@ -5,6 +5,7 @@ from .. import misc
 from ..contexts import SelectionContext, ModeContext
 from ..misc import get_active_color_attribute, get_color_attribute_layer
 
+
 class SmoothNormalsOperator(bpy.types.Operator):
     _ratio_key = "yello_smooth_normal_iterations"
 
@@ -61,6 +62,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
                 data_transfer.loop_mapping = "POLYINTERP_NEAREST"
         return {"FINISHED"}
 
+
 class ResetNormalsOperator(bpy.types.Operator):
     bl_idname = "object.reset_normals"
     bl_label = "Reset Normals"
@@ -84,6 +86,7 @@ class ResetNormalsOperator(bpy.types.Operator):
                         bpy.ops.object.modifier_remove(modifier=mod.name)
                         break
         return {"FINISHED"}
+
 
 class SetMeshColorChannelOperator(bpy.types.Operator):
     bl_idname = "object.set_vertex_color"

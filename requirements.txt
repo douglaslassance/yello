@@ -1,4 +1,4 @@
 fake-bpy-module-latest
 pylint
-black
+black~=26.1
 pytest
