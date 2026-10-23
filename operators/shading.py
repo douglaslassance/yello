@@ -1,8 +1,8 @@
-import bpy
 import bmesh
+import bpy
 
 from .. import misc
-from ..contexts import SelectionContext, ModeContext
+from ..contexts import ModeContext, SelectionContext
 from ..misc import get_active_color_attribute, get_color_attribute_layer
 
 
@@ -19,9 +19,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if context.mode == "OBJECT" and context.selected_objects:
-            return True
-        return False
+        return bool(context.mode == "OBJECT" and context.selected_objects)
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         if self._ratio_key in bpy.context.scene.world:
@@ -32,7 +30,7 @@ class SmoothNormalsOperator(bpy.types.Operator):
         with SelectionContext() as selection_context:
             for obj in selection_context.selected:
                 dup = obj.copy()
-                dup.name = "{}.Normals".format(obj.name)
+                dup.name = f"{obj.name}.Normals"
                 dup.data = obj.data.copy()
                 for mod in obj.modifiers:
                     if mod.name == "NormalTransfer":
@@ -68,9 +66,7 @@ class ResetNormalsOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if context.mode == "OBJECT" and context.selected_objects:
-            return True
-        return False
+        return bool(context.mode == "OBJECT" and context.selected_objects)
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         with SelectionContext() as selection_context:

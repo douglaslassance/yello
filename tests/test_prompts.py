@@ -20,7 +20,7 @@ def _ollama_reachable() -> bool:
     try:
         with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=2) as response:
             return response.status == 200
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 

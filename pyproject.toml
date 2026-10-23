@@ -16,5 +16,9 @@ dev = [
 ]
 
 [tool.ruff.lint]
-# The package takes the name of its checkout folder, which need not be a valid module name.
-ignore = ["N999"]
+ignore = [
+    # The package takes the name of its checkout folder, which need not be a valid module name.
+    "N999",
+    # Blender expects class attributes such as bl_options to be plain sets.
+    "RUF012",
+]
