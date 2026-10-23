@@ -243,9 +243,7 @@ class ExportMeshesOperator(bpy.types.Operator):
                 )
         return {"FINISHED"}
 
-    def find_pre_existing(
-        self, dirname: str, prefix: str, extension: str
-    ) -> list[str]:
+    def find_pre_existing(self, dirname: str, prefix: str, extension: str) -> list[str]:
         """Find export files corresponding to this scene file export."""
         files = []
         for basename in os.listdir(dirname):
