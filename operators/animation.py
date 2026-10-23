@@ -316,22 +316,15 @@ class CleanupOrphanFcurvesOperator(bpy.types.Operator):
 
 
 class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
-    """Import animation from a file and retarget it onto the active control rig.
-
-    The active object must be a control rig. The source skeleton is classified
-    with Ollama, its scale is normalized to the target, and every source action
-    is baked onto the control bones through temporary world-space constraints.
-    The imported source objects and actions are removed afterwards, leaving only
-    the baked actions on the control rig.
-    """
+    """Import animation from a file and retarget it onto the active armature."""
 
     bl_idname = "armature.import_animation"
     bl_label = "Import Animation"
     bl_description = (
         "Import an FBX, glTF, or blend file and retarget all of its actions onto "
-        "the active control rig. Bones are matched by role, the source is scaled "
-        "to fit, and each action is baked onto the controls through temporary "
-        "constraints. Use this to bring in external animation from another rig."
+        "the active armature. Both skeletons are classified so bones are matched "
+        "by role. An armature with a control rig receives the animation on its "
+        "controls, any other armature on its deform bones."
     )
     bl_options = {"REGISTER", "UNDO"}
 
@@ -341,16 +334,32 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
         options={"HIDDEN"},
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    reclassify: bpy.props.BoolProperty(
+        name="Re-classify Bones",
+        description=(
+            "Classify the target's bones again with Ollama instead of reusing the "
+            "result stored on the armature. Enable this after adding, removing, or "
+            "renaming bones"
+        ),
+        default=False,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
-        if obj is None or obj.type != "ARMATURE" or obj.mode != "OBJECT":
-            return False
-        return any(rigging.CONTROL_SUFFIX in bone.name for bone in obj.data.bones)
+        return obj is not None and obj.type == "ARMATURE" and obj.mode == "OBJECT"
 
     def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
         if not ollama.reachable():
-            self.layout.label(text="Ollama is not running.", icon="ERROR")
+            layout.label(text="Ollama is not running.", icon="ERROR")
+        target = context.object
+        if (
+            target is not None
+            and not rigging.has_control_rig(target)
+            and rigging.load_systems(target) is not None
+        ):
+            layout.prop(self, "reclassify")
 
     def _cleanup(
         self,
@@ -364,44 +373,21 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
             if action.name in bpy.data.actions:
                 bpy.data.actions.remove(action)
 
-    def execute(self, context: bpy.types.Context) -> set[str]:
-        target = context.object
-        if not ollama.reachable():
-            self.report({"ERROR"}, "Ollama is not running.")
-            return {"CANCELLED"}
-
-        extension = os.path.splitext(self.filepath)[1].lower()
-        existing_actions = set(bpy.data.actions)
-        if extension == ".fbx":
-            imported = io.import_fbx(self.filepath)
-        elif extension in (".glb", ".gltf"):
-            imported = io.import_gltf(self.filepath)
-        elif extension == ".blend":
-            imported = io.append_blend(self.filepath)
-        else:
-            self.report({"ERROR"}, f"Unsupported file type: {extension}")
-            return {"CANCELLED"}
-
-        source = next((obj for obj in imported if obj.type == "ARMATURE"), None)
-        source_actions = [a for a in bpy.data.actions if a not in existing_actions]
-
-        if source is None:
-            self._cleanup(imported, source_actions)
-            self.report({"ERROR"}, "No armature found in the imported file.")
-            return {"CANCELLED"}
-
-        systems, message, raw = rigging.classify_skeleton(source)
-        self.report({"INFO"}, f"Ollama: {raw}")
-        if not systems:
-            self._cleanup(imported, source_actions)
-            self.report({"ERROR"}, message)
-            return {"CANCELLED"}
-
-        constrained = rigging.bind_controls_to_source(target, source, systems)
+    def _bake(
+        self,
+        context: bpy.types.Context,
+        target: bpy.types.Object,
+        source: bpy.types.Object,
+        source_systems: list[rigging.SystemDict],
+        target_systems: list[rigging.SystemDict] | None,
+        actions: list[bpy.types.Action],
+    ) -> list[tuple[bpy.types.Action, str]] | None:
+        """Bake each action onto the target through temporary constraints."""
+        constrained = rigging.bind_to_source(
+            target, source, source_systems, target_systems
+        )
         if not constrained:
-            self._cleanup(imported, source_actions)
-            self.report({"ERROR"}, "No matching control bones to retarget.")
-            return {"CANCELLED"}
+            return None
 
         context.view_layer.objects.active = target
         bpy.ops.object.mode_set(mode="POSE")
@@ -410,17 +396,9 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
             selectable = pose_bone if hasattr(pose_bone, "select") else pose_bone.bone
             selectable.select = pose_bone.name in constrained
 
-        if source.animation_data is None:
-            source.animation_data_create()
-
-        actions_to_bake = source_actions or (
-            [source.animation_data.action] if source.animation_data.action else []
-        )
-        baked_actions: list[tuple[bpy.types.Action, str]] = []
+        baked = []
         with FrameRangeContext():
-            for source_action in actions_to_bake:
-                if source_action is None:
-                    continue
+            for source_action in actions:
                 animation.assign_action(source, source_action)
 
                 frame_start, frame_end = source_action.frame_range
@@ -443,22 +421,78 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
                 new_action = target.animation_data.action
                 if new_action is not None:
                     new_action.use_fake_user = True
-                    baked_actions.append((new_action, source_action.name))
+                    baked.append((new_action, source_action.name))
 
         bpy.ops.object.mode_set(mode="OBJECT")
         rigging.remove_retarget_constraints(target)
+        return baked
+
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        target = context.object
+        if not ollama.reachable():
+            self.report({"ERROR"}, "Ollama is not running.")
+            return {"CANCELLED"}
+
+        target_systems = rigging.load_systems(target)
+        if not rigging.has_control_rig(target) and (
+            target_systems is None or self.reclassify
+        ):
+            target_systems, message, raw = rigging.classify_skeleton(target)
+            self.report({"INFO"}, f"Ollama: {raw}")
+            if not target_systems:
+                self.report({"ERROR"}, message)
+                return {"CANCELLED"}
+            rigging.store_systems(target, target_systems)
+
+        extension = os.path.splitext(self.filepath)[1].lower()
+        existing_actions = set(bpy.data.actions)
+        if extension == ".fbx":
+            imported = io.import_fbx(self.filepath)
+        elif extension in (".glb", ".gltf"):
+            imported = io.import_gltf(self.filepath)
+        elif extension == ".blend":
+            imported = io.append_blend(self.filepath)
+        else:
+            self.report({"ERROR"}, f"Unsupported file type: {extension}")
+            return {"CANCELLED"}
+
+        source = next((obj for obj in imported if obj.type == "ARMATURE"), None)
+        source_actions = [a for a in bpy.data.actions if a not in existing_actions]
+
+        if source is None:
+            self._cleanup(imported, source_actions)
+            self.report({"ERROR"}, "No armature found in the imported file.")
+            return {"CANCELLED"}
+
+        source_systems, message, raw = rigging.classify_skeleton(source)
+        self.report({"INFO"}, f"Ollama: {raw}")
+        if not source_systems:
+            self._cleanup(imported, source_actions)
+            self.report({"ERROR"}, message)
+            return {"CANCELLED"}
+
+        if source.animation_data is None:
+            source.animation_data_create()
+        actions = source_actions or (
+            [source.animation_data.action] if source.animation_data.action else []
+        )
+
+        retargeted = self._bake(
+            context, target, source, source_systems, target_systems, actions
+        )
         self._cleanup(imported, source_actions)
+        if retargeted is None:
+            self.report({"ERROR"}, "No matching bones to retarget.")
+            return {"CANCELLED"}
 
         # Renamed only once cleanup has freed the source action names.
-        for baked_action, name in baked_actions:
-            baked_action.name = name
-        if baked_actions:
-            animation.assign_action(target, baked_actions[0][0])
+        for retargeted_action, name in retargeted:
+            retargeted_action.name = name
+        if retargeted:
+            animation.assign_action(target, retargeted[0][0])
 
         context.view_layer.objects.active = target
-        self.report(
-            {"INFO"}, f"Imported and retargeted {len(baked_actions)} action(s)."
-        )
+        self.report({"INFO"}, f"Imported and retargeted {len(retargeted)} action(s).")
         return {"FINISHED"}
 
 
