@@ -45,9 +45,7 @@ class ExportAnimationOperator(bpy.types.Operator):
             for obj in list(objects):
                 objects.extend(misc.get_children(obj, recursive=True))
         filename = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
-        io.export_fbx(
-            objects, filename, animations=True, object_types={"ARMATURE"}
-        )
+        io.export_fbx(objects, filename, animations=True, object_types={"ARMATURE"})
         return {"FINISHED"}
 
 
