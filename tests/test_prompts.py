@@ -114,7 +114,6 @@ def _classify_bones(
 
 @requires_ollama
 class TestMatchBones(unittest.TestCase):
-
     def test_exact_match_takes_priority_over_synonym(self):
         """Pelvis_Control must map to itself even though Hips_Control is also present."""
         source = ["Pelvis_Control", "Chest_Control"]
@@ -214,7 +213,6 @@ class TestMatchBones(unittest.TestCase):
 
 @requires_ollama
 class TestClassifyBones(unittest.TestCase):
-
     MIXAMO_BONES = [
         "Hips",
         "Spine",

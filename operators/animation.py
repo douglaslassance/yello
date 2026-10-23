@@ -556,9 +556,7 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
 class ActionSelectionItem(bpy.types.PropertyGroup):
     """A single action entry in the transfer checklist."""
 
-    selected: bpy.props.BoolProperty(
-        name="", default=True
-    )  # pyright: ignore [reportInvalidTypeForm]
+    selected: bpy.props.BoolProperty(name="", default=True)  # pyright: ignore [reportInvalidTypeForm]
 
 
 class TransferAnimationOperator(bpy.types.Operator):
@@ -602,9 +600,7 @@ class TransferAnimationOperator(bpy.types.Operator):
         default=animation.TRANSFER_METHOD_COPY,
     )  # pyright: ignore [reportInvalidTypeForm]
 
-    action_items: bpy.props.CollectionProperty(
-        type=ActionSelectionItem
-    )  # pyright: ignore [reportInvalidTypeForm]
+    action_items: bpy.props.CollectionProperty(type=ActionSelectionItem)  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
