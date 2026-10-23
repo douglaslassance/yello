@@ -1,4 +1,0 @@
-fake-bpy-module-latest
-pylint
-black~=26.1
-pytest
