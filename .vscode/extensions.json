@@ -1,6 +1,6 @@
 {
     "recommendations": [
-        "ms-python.black-formatter",
+        "charliermarsh.ruff",
         "jacqueslucke.blender-development",
         "ms-python.vscode-pylance"
     ]

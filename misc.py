@@ -1,13 +1,12 @@
-import os
 import logging
+import os
 import subprocess
 from typing import Any
 
 import bpy
 import mathutils
-
-from bpy.types import Mesh, Attribute
 from bmesh.types import BMesh, BMLayerItem
+from bpy.types import Attribute, Mesh
 
 from . import contexts
 

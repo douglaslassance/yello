@@ -1,17 +1,18 @@
-import bmesh
-import bpy
 import json
 import logging
 import math
-import mathutils
 import urllib.error
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, NamedTuple
+from typing import Any, NamedTuple
+
+import bmesh
+import bpy
+import mathutils
 
 logger = logging.getLogger(__name__)
 
-from . import dracula
-from . import ollama
+from . import dracula, ollama
 
 _PROMPTS_DIR: Path = Path(__file__).parent / "prompts"
 _ASSETS_DIR: Path = Path(__file__).parent / "assets"
@@ -103,7 +104,7 @@ def classify_bones(
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")
         return None, f"Ollama HTTP {exc.code}: {body[:200]}", ""
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return None, f"Ollama error: {exc}", ""
 
 
@@ -370,7 +371,7 @@ def match_bones(
     except urllib.error.HTTPError as exception:
         body = exception.read().decode(errors="replace")
         return None, f"Ollama HTTP {exception.code}: {body[:200]}", ""
-    except Exception as exception:
+    except Exception as exception:  # noqa: BLE001
         return None, f"Ollama error: {exception}", ""
 
 
@@ -1185,10 +1186,7 @@ def setup_hitbox_visibility_toggle(
         control_bone = skeleton.data.bones.get(control_name)
         if control_bone is None:
             continue
-        try:
-            control_bone.driver_remove("hide")
-        except Exception:
-            pass
+        control_bone.driver_remove("hide")
         fcurve = control_bone.driver_add("hide")
         driver = fcurve.driver
         driver.type = "SCRIPTED"
