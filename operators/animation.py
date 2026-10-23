@@ -334,6 +334,28 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
         options={"HIDDEN"},
     )  # pyright: ignore [reportInvalidTypeForm]
 
+    method: bpy.props.EnumProperty(
+        name="Method",
+        description="How the imported animation reaches the target bones",
+        items=[
+            (
+                animation.IMPORT_METHOD_BAKE,
+                "Bake",
+                "Drive the target bones from the source skeleton through temporary "
+                "world space constraints and bake the result. The source is scaled to "
+                "the target first, so different proportions and rest poses line up",
+            ),
+            (
+                animation.IMPORT_METHOD_COPY,
+                "Copy",
+                "Copy the animation curves onto the matching bones as they are. Exact "
+                "and fast when both skeletons share proportions, rest pose and bone "
+                "orientations",
+            ),
+        ],
+        default=animation.IMPORT_METHOD_BAKE,
+    )  # pyright: ignore [reportInvalidTypeForm]
+
     reclassify: bpy.props.BoolProperty(
         name="Re-classify Bones",
         description=(
@@ -353,6 +375,7 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
         layout = self.layout
         if not ollama.reachable():
             layout.label(text="Ollama is not running.", icon="ERROR")
+        layout.prop(self, "method")
         target = context.object
         if (
             target is not None
@@ -372,6 +395,37 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
         for action in source_actions:
             if action.name in bpy.data.actions:
                 bpy.data.actions.remove(action)
+
+    def _copy(
+        self,
+        target: bpy.types.Object,
+        source: bpy.types.Object,
+        source_systems: list[rigging.SystemDict],
+        target_systems: list[rigging.SystemDict] | None,
+        actions: list[bpy.types.Action],
+    ) -> list[tuple[bpy.types.Action, str]] | None:
+        """Copy each action's curves onto the target bones bound to the source."""
+        bone_mapping = {
+            binding.source_bone: binding.target_bone
+            for binding in rigging.retarget_bindings(
+                target, source_systems, target_systems
+            )
+            if binding.source_bone
+            and binding.source_bone in source.pose.bones
+            and binding.target_bone in target.pose.bones
+        }
+        if not bone_mapping:
+            return None
+        animation.match_rotation_modes(source, target, bone_mapping)
+        copied = []
+        for source_action in actions:
+            new_action = animation.copy_and_remap_animation(
+                source_action, source_action.name, bone_mapping
+            )
+            if new_action is not None:
+                new_action.use_fake_user = True
+                copied.append((new_action, source_action.name))
+        return copied
 
     def _bake(
         self,
@@ -477,9 +531,14 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
             [source.animation_data.action] if source.animation_data.action else []
         )
 
-        retargeted = self._bake(
-            context, target, source, source_systems, target_systems, actions
-        )
+        if self.method == animation.IMPORT_METHOD_COPY:
+            retargeted = self._copy(
+                target, source, source_systems, target_systems, actions
+            )
+        else:
+            retargeted = self._bake(
+                context, target, source, source_systems, target_systems, actions
+            )
         self._cleanup(imported, source_actions)
         if retargeted is None:
             self.report({"ERROR"}, "No matching bones to retarget.")

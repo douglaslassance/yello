@@ -16,6 +16,19 @@ OBJECT_TRANSFORM_DATA_PATHS = {
 }
 
 
+IMPORT_METHOD_BAKE: str = "BAKE"
+IMPORT_METHOD_COPY: str = "COPY"
+
+
+def match_rotation_modes(
+    source: bpy.types.Object, target: bpy.types.Object, bone_mapping: dict[str, str]
+) -> None:
+    """Give each mapped target bone its source bone's rotation mode."""
+    for source_bone, target_bone in bone_mapping.items():
+        source_mode = source.pose.bones[source_bone].rotation_mode
+        target.pose.bones[target_bone].rotation_mode = source_mode
+
+
 def assign_action(obj: bpy.types.Object, action: bpy.types.Action) -> None:
     """Assign an action to an object, creating animation data and binding its slot.
 
