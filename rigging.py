@@ -1930,31 +1930,27 @@ def setup_spine_splineik(
     context: bpy.types.Context,
     bone_data: BoneDataDict,
     container: bpy.types.Object | None = None,
-) -> None:
+) -> bpy.types.Object | None:
     """Create the Spline IK curve for the spine, hooked to CR_Hips and CR_Chest.
 
     The curve is parented to container (or skeleton if None). The Spline IK
     constraint itself is added on the deform skeleton side in wire_deform_constraints.
     Should be called after setup_control_rig_pose while skeleton is in POSE mode.
-    Returns with skeleton in POSE mode.
+    Returns the curve, or None without a spine, with skeleton in POSE mode.
     """
     spine_sys = next((s for s in systems if s["type"] == "spine"), None)
     if spine_sys is None:
-        return
+        return None
 
     chain = spine_sys.get("vertebrae") or []
     if not chain or chain[0] not in bone_data or chain[-1] not in bone_data:
-        return
+        return None
 
     matrix_world = skeleton.matrix_world
     start_pos = matrix_world @ bone_data[chain[0]]["head"]
     end_pos = matrix_world @ bone_data[chain[-1]]["tail"]
 
-    curve_name = "Spine_Curve"
-    old = bpy.data.objects.get(curve_name)
-    if old:
-        bpy.data.objects.remove(old, do_unlink=True)
-
+    curve_name = f"{skeleton.name}_Spine_Curve"
     curve_data = bpy.data.curves.new(curve_name, "CURVE")
     curve_data.dimensions = "3D"
     curve_data.resolution_u = 12
@@ -2002,6 +1998,7 @@ def setup_spine_splineik(
     curve_obj.hide_viewport = True
     context.view_layer.objects.active = skeleton
     bpy.ops.object.mode_set(mode="POSE")
+    return curve_obj
 
 
 def _add_copy_transforms(
@@ -2039,6 +2036,7 @@ def _rest_pole_angle(
 def wire_deform_constraints(
     armature: bpy.types.Object,
     systems: list[SystemDict],
+    spine_curve: bpy.types.Object | None = None,
 ) -> None:
     """Drive the skeleton from the controls, through each control's offset bone when one exists."""
     armature.data.pose_position = "POSE"
@@ -2055,12 +2053,11 @@ def wire_deform_constraints(
         if system_type == "spine":
             vertebrae = system.get("vertebrae") or []
             if vertebrae:
-                curve_obj = bpy.data.objects.get("Spine_Curve")
                 last_pose_bone = pose_bones.get(vertebrae[-1])
-                if curve_obj and last_pose_bone:
+                if spine_curve and last_pose_bone:
                     constraint = last_pose_bone.constraints.new("SPLINE_IK")
                     constraint.name = CONTROL_RIG_CONSTRAINT_NAME
-                    constraint.target = curve_obj
+                    constraint.target = spine_curve
                     constraint.chain_count = len(vertebrae)
                     constraint.use_chain_offset = False
                     constraint.use_even_divisions = False
@@ -2089,9 +2086,25 @@ def wire_deform_constraints(
             bone.hide = True
 
 
+def _is_control_rig_spline_ik(constraint: bpy.types.Constraint) -> bool:
+    """Return whether the constraint is the control rig Spline IK or a numbered duplicate."""
+    return constraint.type == "SPLINE_IK" and constraint.name.startswith(
+        CONTROL_RIG_CONSTRAINT_NAME
+    )
+
+
+def _remove_curve_object(curve_object: bpy.types.Object) -> None:
+    """Delete a curve object and its curve data once nothing else uses it."""
+    curve = curve_object.data
+    bpy.data.objects.remove(curve_object, do_unlink=True)
+    if curve.users == 0:
+        bpy.data.curves.remove(curve)
+
+
 def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
     """Remove all control bones (identified by the _Control suffix) and any constraints targeting them.
 
+    The spine Spline IK constraint and its curve are removed too.
     Should be called in POSE mode. Internally switches to EDIT mode to delete bones,
     then returns to OBJECT mode.
     """
@@ -2100,12 +2113,20 @@ def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
         for b in skeleton.data.bones
         if CONTROL_SUFFIX in b.name or MECHANISM_SUFFIX in b.name
     }
-    if not control_bone_names:
-        return
+    spine_curves = []
     for pose_bone in skeleton.pose.bones:
         for constraint in list(pose_bone.constraints):
-            if getattr(constraint, "subtarget", None) in control_bone_names:
+            if _is_control_rig_spline_ik(constraint):
+                curve_object = constraint.target
+                if curve_object is not None and curve_object not in spine_curves:
+                    spine_curves.append(curve_object)
                 pose_bone.constraints.remove(constraint)
+            elif getattr(constraint, "subtarget", None) in control_bone_names:
+                pose_bone.constraints.remove(constraint)
+    for curve_object in spine_curves:
+        _remove_curve_object(curve_object)
+    if not control_bone_names:
+        return
     for bone in skeleton.data.bones:
         if CONTROL_SUFFIX not in bone.name:
             bone.hide = False
