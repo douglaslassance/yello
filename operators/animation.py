@@ -6,6 +6,7 @@ from bpy_extras.io_utils import ImportHelper
 
 from ..contexts import (
     AnimationContext,
+    FrameRangeContext,
     MutedFcurvesContext,
     SelectionContext,
     VisibleContext,
@@ -45,9 +46,7 @@ class ExportAnimationOperator(bpy.types.Operator):
             for obj in list(objects):
                 objects.extend(misc.get_children(obj, recursive=True))
         filename = os.path.splitext(bpy.data.filepath)[0] + ".fbx"
-        io.export_fbx(
-            objects, filename, animations=True, object_types={"ARMATURE"}
-        )
+        io.export_fbx(objects, filename, animations=True, object_types={"ARMATURE"})
         return {"FINISHED"}
 
 
@@ -404,8 +403,10 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
 
         context.view_layer.objects.active = target
         bpy.ops.object.mode_set(mode="POSE")
-        for bone in target.data.bones:
-            bone.select = bone.name in constrained
+        for pose_bone in target.pose.bones:
+            # Blender 5.0 moved pose selection from Bone to PoseBone.
+            selectable = pose_bone if hasattr(pose_bone, "select") else pose_bone.bone
+            selectable.select = pose_bone.name in constrained
 
         if source.animation_data is None:
             source.animation_data_create()
@@ -413,47 +414,49 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
         actions_to_bake = source_actions or (
             [source.animation_data.action] if source.animation_data.action else []
         )
-        first_target_action = None
-        baked = 0
-        for source_action in actions_to_bake:
-            if source_action is None:
-                continue
-            animation.assign_action(source, source_action)
+        baked_actions: list[tuple[bpy.types.Action, str]] = []
+        with FrameRangeContext():
+            for source_action in actions_to_bake:
+                if source_action is None:
+                    continue
+                animation.assign_action(source, source_action)
 
-            frame_start, frame_end = source_action.frame_range
-            context.scene.frame_start = int(frame_start)
-            context.scene.frame_end = int(frame_end)
+                frame_start, frame_end = source_action.frame_range
+                context.scene.frame_start = int(frame_start)
+                context.scene.frame_end = int(frame_end)
 
-            if target.animation_data is None:
-                target.animation_data_create()
-            target.animation_data.action = None
-            bpy.ops.nla.bake(
-                frame_start=int(frame_start),
-                frame_end=int(frame_end),
-                only_selected=True,
-                visual_keying=True,
-                clear_constraints=False,
-                clear_parents=False,
-                use_current_action=False,
-                bake_types={"POSE"},
-            )
-            new_action = target.animation_data.action
-            if new_action is not None:
-                new_action.name = source_action.name
-                new_action.use_fake_user = True
-                baked += 1
-                if first_target_action is None:
-                    first_target_action = new_action
+                if target.animation_data is None:
+                    target.animation_data_create()
+                target.animation_data.action = None
+                bpy.ops.nla.bake(
+                    frame_start=int(frame_start),
+                    frame_end=int(frame_end),
+                    only_selected=True,
+                    visual_keying=True,
+                    clear_constraints=False,
+                    clear_parents=False,
+                    use_current_action=False,
+                    bake_types={"POSE"},
+                )
+                new_action = target.animation_data.action
+                if new_action is not None:
+                    new_action.use_fake_user = True
+                    baked_actions.append((new_action, source_action.name))
 
         bpy.ops.object.mode_set(mode="OBJECT")
         rigging.remove_retarget_constraints(target)
         self._cleanup(imported, source_actions)
 
-        if first_target_action is not None:
-            animation.assign_action(target, first_target_action)
+        # Renamed only once cleanup has freed the source action names.
+        for baked_action, name in baked_actions:
+            baked_action.name = name
+        if baked_actions:
+            animation.assign_action(target, baked_actions[0][0])
 
         context.view_layer.objects.active = target
-        self.report({"INFO"}, f"Imported and retargeted {baked} action(s).")
+        self.report(
+            {"INFO"}, f"Imported and retargeted {len(baked_actions)} action(s)."
+        )
         return {"FINISHED"}
 
 
