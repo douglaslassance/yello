@@ -416,8 +416,7 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
         actions_to_bake = source_actions or (
             [source.animation_data.action] if source.animation_data.action else []
         )
-        first_target_action = None
-        baked = 0
+        baked_actions: list[tuple[bpy.types.Action, str]] = []
         with FrameRangeContext():
             for source_action in actions_to_bake:
                 if source_action is None:
@@ -443,21 +442,23 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
                 )
                 new_action = target.animation_data.action
                 if new_action is not None:
-                    new_action.name = source_action.name
                     new_action.use_fake_user = True
-                    baked += 1
-                    if first_target_action is None:
-                        first_target_action = new_action
+                    baked_actions.append((new_action, source_action.name))
 
         bpy.ops.object.mode_set(mode="OBJECT")
         rigging.remove_retarget_constraints(target)
         self._cleanup(imported, source_actions)
 
-        if first_target_action is not None:
-            animation.assign_action(target, first_target_action)
+        # Renamed only once cleanup has freed the source action names.
+        for baked_action, name in baked_actions:
+            baked_action.name = name
+        if baked_actions:
+            animation.assign_action(target, baked_actions[0][0])
 
         context.view_layer.objects.active = target
-        self.report({"INFO"}, f"Imported and retargeted {baked} action(s).")
+        self.report(
+            {"INFO"}, f"Imported and retargeted {len(baked_actions)} action(s)."
+        )
         return {"FINISHED"}
 
 
