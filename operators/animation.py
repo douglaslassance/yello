@@ -1,9 +1,10 @@
-import os
 import datetime
+import os
 
 import bpy
 from bpy_extras.io_utils import ImportHelper
 
+from .. import animation, io, misc, ollama, rigging
 from ..contexts import (
     AnimationContext,
     FrameRangeContext,
@@ -11,12 +12,6 @@ from ..contexts import (
     SelectionContext,
     VisibleContext,
 )
-
-from .. import animation
-from .. import misc
-from .. import io
-from .. import ollama
-from .. import rigging
 
 
 class ExportAnimationOperator(bpy.types.Operator):
@@ -32,10 +27,7 @@ class ExportAnimationOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if bpy.data.filepath:
-            if context.mode and context.selected_objects:
-                return True
-        return False
+        return bool(bpy.data.filepath and context.mode and context.selected_objects)
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         return context.window_manager.invoke_props_dialog(self)
@@ -57,10 +49,7 @@ class ExportAnimatedMeshOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if bpy.data.filepath:
-            if context.mode and context.selected_objects:
-                return True
-        return False
+        return bool(bpy.data.filepath and context.mode and context.selected_objects)
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         filename = os.path.splitext(bpy.data.filepath)[0] + ".abc"
@@ -193,55 +182,59 @@ class ExportActionsOperator(bpy.types.Operator):
             if self.disable_armature_animation
             else []
         )
-        with VisibleContext(skeleton), AnimationContext(skeleton):
-            with MutedFcurvesContext(muted_fcurves), SelectionContext():
-                if muted_fcurves:
-                    self._hold_active_action_start(skeleton)
-                misc.select_objects(objects)
-                if self.file_format == "GLTF":
-                    bpy.ops.export_scene.gltf(
-                        filepath=filename,
-                        check_existing=False,
-                        use_selection=True,
-                        use_visible=False,
-                        export_yup=True,
-                        export_reset_pose_bones=True,
-                        export_copyright=f"© {year} Douglas Lassance",
-                        export_format="GLB",
-                        export_all_vertex_colors=True,
-                        export_bake_animation=True,
-                        export_merge_animation="NONE",
-                        export_apply=True,
-                        export_animations=True,
-                        export_animation_mode="ACTIONS",
-                        export_def_bones=True,
-                        export_materials=self.materials,
-                        will_save_settings=self.save_settings,
-                    )
-                else:
-                    bpy.ops.export_scene.fbx(
-                        filepath=filename,
-                        check_existing=False,
-                        use_selection=True,
-                        use_visible=False,
-                        add_leaf_bones=False,
-                        apply_scale_options="FBX_SCALE_NONE",
-                        apply_unit_scale=True,
-                        armature_nodetype="NULL",
-                        axis_forward="-Z",
-                        axis_up="Y",
-                        bake_anim=True,
-                        bake_anim_use_all_actions=True,
-                        bake_anim_use_nla_strips=False,
-                        bake_space_transform=False,
-                        global_scale=1.0,
-                        mesh_smooth_type="FACE",
-                        object_types={"ARMATURE", "MESH"},
-                        primary_bone_axis="Y",
-                        secondary_bone_axis="X",
-                        use_armature_deform_only=True,
-                        use_space_transform=True,
-                    )
+        with (
+            VisibleContext(skeleton),
+            AnimationContext(skeleton),
+            MutedFcurvesContext(muted_fcurves),
+            SelectionContext(),
+        ):
+            if muted_fcurves:
+                self._hold_active_action_start(skeleton)
+            misc.select_objects(objects)
+            if self.file_format == "GLTF":
+                bpy.ops.export_scene.gltf(
+                    filepath=filename,
+                    check_existing=False,
+                    use_selection=True,
+                    use_visible=False,
+                    export_yup=True,
+                    export_reset_pose_bones=True,
+                    export_copyright=f"© {year} Douglas Lassance",
+                    export_format="GLB",
+                    export_all_vertex_colors=True,
+                    export_bake_animation=True,
+                    export_merge_animation="NONE",
+                    export_apply=True,
+                    export_animations=True,
+                    export_animation_mode="ACTIONS",
+                    export_def_bones=True,
+                    export_materials=self.materials,
+                    will_save_settings=self.save_settings,
+                )
+            else:
+                bpy.ops.export_scene.fbx(
+                    filepath=filename,
+                    check_existing=False,
+                    use_selection=True,
+                    use_visible=False,
+                    add_leaf_bones=False,
+                    apply_scale_options="FBX_SCALE_NONE",
+                    apply_unit_scale=True,
+                    armature_nodetype="NULL",
+                    axis_forward="-Z",
+                    axis_up="Y",
+                    bake_anim=True,
+                    bake_anim_use_all_actions=True,
+                    bake_anim_use_nla_strips=False,
+                    bake_space_transform=False,
+                    global_scale=1.0,
+                    mesh_smooth_type="FACE",
+                    object_types={"ARMATURE", "MESH"},
+                    primary_bone_axis="Y",
+                    secondary_bone_axis="X",
+                    use_armature_deform_only=True,
+                    use_space_transform=True,
+                )
         if self.file_format == "GLTF" and self.export_markers:
             tagged = io.add_glb_action_markers(filename)
             self.report({"INFO"}, f"Added markers to {tagged} animation(s).")
@@ -339,16 +332,20 @@ class ImportAnimationOperator(bpy.types.Operator, ImportHelper):
             (
                 animation.IMPORT_METHOD_BAKE,
                 "Bake",
-                "Drive the target bones from the source skeleton through temporary "
-                "world space constraints and bake the result. The source is scaled to "
-                "the target first, so different proportions and rest poses line up",
+                (
+                    "Drive the target bones from the source skeleton through temporary "
+                    "world space constraints and bake the result. The source is scaled to "
+                    "the target first, so different proportions and rest poses line up"
+                ),
             ),
             (
                 animation.IMPORT_METHOD_COPY,
                 "Copy",
-                "Copy the animation curves onto the matching bones as they are. Exact "
-                "and fast when both skeletons share proportions, rest pose and bone "
-                "orientations",
+                (
+                    "Copy the animation curves onto the matching bones as they are. Exact "
+                    "and fast when both skeletons share proportions, rest pose and bone "
+                    "orientations"
+                ),
             ),
         ],
         default=animation.IMPORT_METHOD_BAKE,
@@ -582,19 +579,23 @@ class TransferAnimationOperator(bpy.types.Operator):
             (
                 animation.TRANSFER_METHOD_COPY,
                 "Copy",
-                "Rename the action's fcurves onto the matched bones and keep every key "
-                "as it is. Fast and lossless, but the target must share the source's "
-                "rest pose, bone axes, rotation mode and proportions. Use this for "
-                "variants of the same skeleton",
+                (
+                    "Rename the action's fcurves onto the matched bones and keep every key "
+                    "as it is. Fast and lossless, but the target must share the source's "
+                    "rest pose, bone axes, rotation mode and proportions. Use this for "
+                    "variants of the same skeleton"
+                ),
             ),
             (
                 animation.TRANSFER_METHOD_BAKE,
                 "Bake",
-                "Play the action on its source armature in the scene and key the "
-                "matched bones on every frame. Differences in bone axes, rolls, "
-                "rotation modes and proportions are compensated, and root motion is "
-                "scaled to fit. Both rigs should still rest in a similar pose, such as "
-                "a T-pose",
+                (
+                    "Play the action on its source armature in the scene and key the "
+                    "matched bones on every frame. Differences in bone axes, rolls, "
+                    "rotation modes and proportions are compensated, and root motion is "
+                    "scaled to fit. Both rigs should still rest in a similar pose, such as "
+                    "a T-pose"
+                ),
             ),
         ],
         default=animation.TRANSFER_METHOD_COPY,

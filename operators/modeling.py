@@ -1,9 +1,8 @@
 import os
+
 import bpy
 
-from .. import contexts
-from .. import misc
-from .. import io
+from .. import contexts, io, misc
 
 
 class GenerateInvertedHullOperator(bpy.types.Operator):
@@ -126,10 +125,7 @@ class ExportMeshOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if bpy.data.filepath:
-            if context.mode and context.selected_objects:
-                return True
-        return False
+        return bool(bpy.data.filepath and context.mode and context.selected_objects)
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         return context.window_manager.invoke_props_dialog(self)
@@ -207,10 +203,7 @@ class ExportMeshesOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if bpy.data.filepath:
-            if context.mode and context.selected_objects:
-                return True
-        return False
+        return bool(bpy.data.filepath and context.mode and context.selected_objects)
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         basename = os.path.basename(bpy.data.filepath)
@@ -219,7 +212,7 @@ class ExportMeshesOperator(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         selection = bpy.context.selected_objects
-        dirname, basename = os.path.split(bpy.data.filepath)
+        dirname = os.path.dirname(bpy.data.filepath)
         extension = ".fbx" if self.file_format == "FBX" else ".glb"
         if self.remove_pre_existing:
             for existing_file in self.find_pre_existing(
@@ -261,9 +254,7 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if context.mode == "OBJECT" and context.selected_objects:
-            return True
-        return False
+        return bool(context.mode == "OBJECT" and context.selected_objects)
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         sources = bpy.context.selected_objects
@@ -277,11 +268,11 @@ class GenerateMeshIntersectionsOperator(bpy.types.Operator):
             return {"FINISHED"}
         intersections = []
         for cutter in collection_objects:
-            if not cutter.type == "MESH":
+            if cutter.type != "MESH":
                 continue
             cuts = []
             for source in sources:
-                if not source.type == "MESH":
+                if source.type != "MESH":
                     continue
                 cut = misc.duplicate_object(source)
                 misc.apply_all_modifiers(cut)

@@ -1,6 +1,7 @@
 import os
-import subprocess
 import platform
+import subprocess
+
 import bpy
 
 from .. import misc

@@ -1,11 +1,11 @@
-import bpy
 import math
-import mathutils
 import re
 
-from .. import misc
+import bpy
+import mathutils
+
+from .. import misc, rigging
 from ..contexts import CursorContext, ModeContext, SelectionContext
-from .. import rigging
 
 
 def _minimize_bone_roll(bone: bpy.types.EditBone) -> None:
@@ -38,7 +38,7 @@ def _conform_bone_side_name(name: str) -> str | None:
     the canonical .L or .R suffix. Returns None if no side token is found
     or if the name already ends with .L or .R.
     """
-    if name.endswith(".L") or name.endswith(".R"):
+    if name.endswith((".L", ".R")):
         return None
     for pattern in _SIDE_PATTERNS:
         match = pattern.fullmatch(name)
@@ -151,10 +151,7 @@ class AlignBonesOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
-        if obj is not None:
-            if obj.mode == "EDIT":
-                return True
-        return False
+        return obj is not None and obj.mode == "EDIT"
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         bones, error = misc.validate_bone_chain(
@@ -182,10 +179,7 @@ class CreateBoneAlignedObjectOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
-        if obj is not None:
-            if obj.mode == "POSE":
-                return True
-        return False
+        return obj is not None and obj.mode == "POSE"
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         pose_bone = context.active_pose_bone
@@ -212,10 +206,7 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
-        if obj is not None:
-            if obj.mode == "EDIT":
-                return True
-        return False
+        return obj is not None and obj.mode == "EDIT"
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         bones, error = misc.validate_bone_chain(
@@ -229,9 +220,7 @@ class DistributeBonesEvenlyOperator(bpy.types.Operator):
         length = overarching_vector.length
         normalized = overarching_vector.normalized()
         bone_count = len(bones)
-        bone_number = 0
-        for bone in bones[:-1]:
-            bone_number += 1
+        for bone_number, bone in enumerate(bones[:-1], start=1):
             bone.tail = head + normalized * length / bone_count * bone_number
         for bone in bones:
             bone.roll = 0
@@ -250,10 +239,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
-        if obj is not None:
-            if obj.mode == "EDIT":
-                return True
-        return False
+        return obj is not None and obj.mode == "EDIT"
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
         bones = context.editable_bones
@@ -274,9 +260,7 @@ class GenerateTwistBonesOperator(bpy.types.Operator):
             createds = []
             for number in range(self.count):
                 splits = bone.name.split(".")
-                name = ".".join(
-                    splits[:-1] + ["Twist.{:03d}".format(number + 1), splits[-1]]
-                )
+                name = ".".join(splits[:-1] + [f"Twist.{number + 1:03d}", splits[-1]])
                 new_bone = edit_bones.new(name)
                 new_bone.envelope_weight = bone.envelope_weight
                 new_bone.envelope_distance = bone.envelope_distance
@@ -308,10 +292,7 @@ class GenerateBlendBoneOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
-        if obj is not None:
-            if obj.mode == "EDIT":
-                return True
-        return False
+        return obj is not None and obj.mode == "EDIT"
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         bones, error = misc.validate_bone_chain(
@@ -399,20 +380,24 @@ class BuildControlRigOperator(bpy.types.Operator):
             (
                 rigging.BUILD_MODE_STRICT,
                 "Strict",
-                "Require the skeleton to already follow Yello's convention, for "
-                "example the pelvis pointing down. Deform bones are rolled to match "
-                "the controls that drive them, and any bone that breaks the "
-                "convention is reported so you can fix it or cancel before building. "
-                "Use this for skeletons you author and clean up yourself",
+                (
+                    "Require the skeleton to already follow Yello's convention, for "
+                    "example the pelvis pointing down. Deform bones are rolled to match "
+                    "the controls that drive them, and any bone that breaks the "
+                    "convention is reported so you can fix it or cancel before building. "
+                    "Use this for skeletons you author and clean up yourself"
+                ),
             ),
             (
                 rigging.BUILD_MODE_LOOSE,
                 "Loose",
-                "Build over a skeleton you must not modify, such as a Mixamo or Meshy "
-                "import you want to keep animation compatible. Hidden offset bones "
-                "bridge each control to its deform bone, so the controls match strict "
-                "mode while the deform skeleton stays untouched and source animations "
-                "still load in the engine",
+                (
+                    "Build over a skeleton you must not modify, such as a Mixamo or Meshy "
+                    "import you want to keep animation compatible. Hidden offset bones "
+                    "bridge each control to its deform bone, so the controls match strict "
+                    "mode while the deform skeleton stays untouched and source animations "
+                    "still load in the engine"
+                ),
             ),
         ],
         default=rigging.BUILD_MODE_STRICT,
@@ -638,10 +623,7 @@ class NormalizeBoneRollOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         obj = context.object
-        if obj is not None:
-            if obj.mode == "EDIT":
-                return True
-        return False
+        return obj is not None and obj.mode == "EDIT"
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         for bone in context.editable_bones:

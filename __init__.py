@@ -1,12 +1,11 @@
-import os
-import bpy
-import sys
-import logging
-import typing
-import inspect
-import pkgutil
 import importlib
+import inspect
+import logging
+import pkgutil
+import typing
 from pathlib import Path
+
+import bpy
 
 logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(levelname)s: %(message)s")
 
@@ -95,19 +94,20 @@ def iter_my_register_deps(cls, my_classes, my_classes_by_idname):
 def iter_my_deps_from_annotations(cls, my_classes):
     for value in typing.get_type_hints(cls, {}, {}).values():
         dependency = get_dependency_from_annotation(value)
-        if dependency is not None:
-            if dependency in my_classes:
-                yield dependency
+        if dependency is not None and dependency in my_classes:
+            yield dependency
 
 
 def get_dependency_from_annotation(value):
     if blender_version >= (2, 93):
         if isinstance(value, bpy.props._PropertyDeferred):
             return value.keywords.get("type")
-    else:
-        if isinstance(value, tuple) and len(value) == 2:
-            if value[0] in (bpy.props.PointerProperty, bpy.props.CollectionProperty):
-                return value[1]["type"]
+    elif (
+        isinstance(value, tuple)
+        and len(value) == 2
+        and value[0] in (bpy.props.PointerProperty, bpy.props.CollectionProperty)
+    ):
+        return value[1]["type"]
     return None
 
 
@@ -123,9 +123,10 @@ def iter_my_deps_from_parent_id(cls, my_classes_by_idname):
 def iter_my_classes(modules):
     base_types = get_register_base_types()
     for cls in get_classes_in_modules(modules):
-        if any(base in base_types for base in cls.__bases__):
-            if not getattr(cls, "is_registered", False):
-                yield cls
+        if any(base in base_types for base in cls.__bases__) and not getattr(
+            cls, "is_registered", False
+        ):
+            yield cls
 
 
 def get_classes_in_modules(modules):
@@ -143,7 +144,7 @@ def iter_classes_in_module(module):
 
 
 def get_register_base_types():
-    return set(
+    return {
         getattr(bpy.types, name)
         for name in [
             "Panel",
@@ -160,7 +161,7 @@ def get_register_base_types():
             "Gizmo",
             "GizmoGroup",
         ]
-    )
+    }
 
 
 def toposort(deps_dict):
