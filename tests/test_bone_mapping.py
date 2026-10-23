@@ -121,7 +121,7 @@ class TestMatchBones(unittest.TestCase):
 
     def test_unparseable_response_returns_none(self):
         with mock.patch.object(rigging.ollama, "chat", return_value="{}"):
-            pairs, message, raw = rigging.match_bones(["A_Control"], ["A_Control"])
+            pairs, message, _raw = rigging.match_bones(["A_Control"], ["A_Control"])
         self.assertIsNone(pairs)
         self.assertIn("Could not parse", message)
 
@@ -138,7 +138,7 @@ class TestMatchBones(unittest.TestCase):
         with mock.patch.object(
             rigging.ollama, "chat", side_effect=RuntimeError("offline")
         ):
-            pairs, message, raw = rigging.match_bones(["A_Control"], ["A_Control"])
+            pairs, message, _raw = rigging.match_bones(["A_Control"], ["A_Control"])
         self.assertIsNone(pairs)
         self.assertIn("Ollama error", message)
         self.assertIn("offline", message)
@@ -309,7 +309,7 @@ class TestClassifyBones(unittest.TestCase):
         )
         bones = ["LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase"]
         with mock.patch.object(rigging.ollama, "chat", return_value=response):
-            systems, message, raw = rigging.classify_bones(bones)
+            systems, message, _raw = rigging.classify_bones(bones)
         self.assertEqual(len(systems), 1)
         self.assertIn("Identified", message)
         self.assertIn("toe=yes", message)

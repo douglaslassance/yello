@@ -4,7 +4,7 @@ import struct
 import bpy
 
 from . import contexts
-from .misc import select_objects, make_writable
+from .misc import make_writable, select_objects
 
 GLB_HEADER = struct.Struct("<4sII")
 GLB_CHUNK_HEADER = struct.Struct("<I4s")

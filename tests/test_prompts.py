@@ -20,7 +20,7 @@ def _ollama_reachable() -> bool:
     try:
         with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=2) as response:
             return response.status == 200
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 
@@ -114,7 +114,6 @@ def _classify_bones(
 
 @requires_ollama
 class TestMatchBones(unittest.TestCase):
-
     def test_exact_match_takes_priority_over_synonym(self):
         """Pelvis_Control must map to itself even though Hips_Control is also present."""
         source = ["Pelvis_Control", "Chest_Control"]
@@ -214,7 +213,6 @@ class TestMatchBones(unittest.TestCase):
 
 @requires_ollama
 class TestClassifyBones(unittest.TestCase):
-
     MIXAMO_BONES = [
         "Hips",
         "Spine",

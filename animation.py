@@ -1,5 +1,6 @@
-import bpy
 import logging
+
+import bpy
 import mathutils
 
 from .contexts import AnimationContext

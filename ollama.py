@@ -2,7 +2,6 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from typing import Any
 
 import bpy
 
@@ -19,7 +18,7 @@ def reachable() -> bool:
     try:
         with urllib.request.urlopen(f"{URL}/api/tags", timeout=TIMEOUT_PING) as r:
             return r.status == 200
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 
@@ -30,7 +29,7 @@ def model_available(model: str | None = None) -> bool:
             data = json.loads(r.read())
         names = [entry.get("name", "") for entry in data.get("models", [])]
         return (model or MODEL) in names
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 
