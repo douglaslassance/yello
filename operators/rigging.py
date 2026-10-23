@@ -359,9 +359,10 @@ class BuildControlRigOperator(bpy.types.Operator):
     minimize_bone_rolls: bpy.props.BoolProperty(
         name="Minimize Bone Rolls",
         description=(
-            "Snap every bone's roll to the nearest 90 degree increment closest to "
-            "zero before building. Only applies in strict mode, since loose mode "
-            "never modifies the skeleton"
+            "Snap the roll of bones the controls do not orient, such as the legs "
+            "and spine, to the nearest 90 degree increment closest to zero before "
+            "building. Only applies in strict mode, since loose mode never modifies "
+            "the skeleton"
         ),
         default=True,
     )  # pyright: ignore [reportInvalidTypeForm]
@@ -369,28 +370,30 @@ class BuildControlRigOperator(bpy.types.Operator):
     mode: bpy.props.EnumProperty(
         name="Mode",
         description=(
-            "How the control rig reconciles with the deform skeleton. Strict expects "
-            "a conformed skeleton and validates it before building; loose builds over "
-            "an untouched skeleton to keep source animations compatible"
+            "How the control rig reconciles with the deform skeleton. Both modes "
+            "build the same controls with the same orientation, so animation "
+            "transfers between rigs built in either mode. Strict expects a conformed "
+            "skeleton and validates it before building; loose builds over an "
+            "untouched skeleton to keep source animations compatible"
         ),
         items=[
             (
                 rigging.BUILD_MODE_STRICT,
                 "Strict",
                 "Require the skeleton to already follow Yello's convention, for "
-                "example the pelvis pointing down. Controls are placed to match the "
-                "deform bones exactly, and any bone that breaks the convention is "
-                "reported so you can fix it or cancel before building. Use this for "
-                "skeletons you author and clean up yourself",
+                "example the pelvis pointing down. Deform bones are rolled to match "
+                "the controls that drive them, and any bone that breaks the "
+                "convention is reported so you can fix it or cancel before building. "
+                "Use this for skeletons you author and clean up yourself",
             ),
             (
                 rigging.BUILD_MODE_LOOSE,
                 "Loose",
                 "Build over a skeleton you must not modify, such as a Mixamo or Meshy "
-                "import you want to keep animation compatible. Non-conforming bones "
-                "are reconciled with hidden offset bones instead of being reported, "
-                "and the deform skeleton is left untouched so source animations still "
-                "load in the engine",
+                "import you want to keep animation compatible. Hidden offset bones "
+                "bridge each control to its deform bone, so the controls match strict "
+                "mode while the deform skeleton stays untouched and source animations "
+                "still load in the engine",
             ),
         ],
         default=rigging.BUILD_MODE_STRICT,
