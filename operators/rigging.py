@@ -576,10 +576,7 @@ class RemoveControlRigOperator(bpy.types.Operator):
             return {"CANCELLED"}
         bpy.ops.object.mode_set(mode="POSE")
         rigging.remove_control_rig_bones(skeleton)
-        for container_name in ("Shapes", "Curves"):
-            container = bpy.data.objects.get(container_name)
-            if container:
-                bpy.data.objects.remove(container, do_unlink=True)
+        rigging.remove_control_rig_containers(skeleton)
         if rigging.SYSTEMS_PROPERTY_NAME in skeleton.data:
             del skeleton.data[rigging.SYSTEMS_PROPERTY_NAME]
         self.report({"INFO"}, f"Removed {len(control_bone_names)} control rig bones.")
