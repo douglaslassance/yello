@@ -456,10 +456,10 @@ def get_or_load_shape(
     with bpy.data.libraries.load(str(blend_path), link=False) as (data_from, data_to):
         if blend_name in data_from.objects:
             data_to.objects = [blend_name]
-    loaded = bpy.data.objects.get(blend_name)
+    loaded = data_to.objects[0] if data_to.objects else None
     if loaded and display_name:
         loaded.name = display_name
-    return bpy.data.objects.get(name)
+    return loaded
 
 
 def get_or_create_control_rig_container(
