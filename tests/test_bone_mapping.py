@@ -28,10 +28,12 @@ class TestParseBonePairs(unittest.TestCase):
     """rigging._parse_bone_pairs: validation of raw match responses."""
 
     def test_valid_pairs_resolved(self):
-        data = {"pairs": [
-            {"source": "Chest_Control", "target": "Torso_Control"},
-            {"source": "Pelvis_Control", "target": "Pelvis_Control"},
-        ]}
+        data = {
+            "pairs": [
+                {"source": "Chest_Control", "target": "Torso_Control"},
+                {"source": "Pelvis_Control", "target": "Pelvis_Control"},
+            ]
+        }
         pairs = rigging._parse_bone_pairs(
             data,
             ["Chest_Control", "Pelvis_Control"],
@@ -45,34 +47,32 @@ class TestParseBonePairs(unittest.TestCase):
     def test_case_insensitive_and_whitespace_resolution(self):
         """Names are resolved to the canonical casing from the input lists."""
         data = {"pairs": [{"source": "  chest_control ", "target": "TORSO_CONTROL"}]}
-        pairs = rigging._parse_bone_pairs(
-            data, ["Chest_Control"], ["Torso_Control"]
-        )
+        pairs = rigging._parse_bone_pairs(data, ["Chest_Control"], ["Torso_Control"])
         self.assertEqual(pairs, [("Chest_Control", "Torso_Control")])
 
     def test_hallucinated_names_dropped(self):
         """Pairs referencing bones absent from the input lists are discarded."""
-        data = {"pairs": [
-            {"source": "Chest_Control", "target": "MadeUp_Control"},
-            {"source": "Ghost_Control", "target": "Torso_Control"},
-            {"source": "Chest_Control", "target": "Torso_Control"},
-        ]}
-        pairs = rigging._parse_bone_pairs(
-            data, ["Chest_Control"], ["Torso_Control"]
-        )
+        data = {
+            "pairs": [
+                {"source": "Chest_Control", "target": "MadeUp_Control"},
+                {"source": "Ghost_Control", "target": "Torso_Control"},
+                {"source": "Chest_Control", "target": "Torso_Control"},
+            ]
+        }
+        pairs = rigging._parse_bone_pairs(data, ["Chest_Control"], ["Torso_Control"])
         self.assertEqual(pairs, [("Chest_Control", "Torso_Control")])
 
     def test_malformed_entries_skipped(self):
-        data = {"pairs": [
-            "not-a-dict",
-            {"source": "Chest_Control"},
-            {"target": "Torso_Control"},
-            {"source": 5, "target": "Torso_Control"},
-            {"source": "Chest_Control", "target": "Torso_Control"},
-        ]}
-        pairs = rigging._parse_bone_pairs(
-            data, ["Chest_Control"], ["Torso_Control"]
-        )
+        data = {
+            "pairs": [
+                "not-a-dict",
+                {"source": "Chest_Control"},
+                {"target": "Torso_Control"},
+                {"source": 5, "target": "Torso_Control"},
+                {"source": "Chest_Control", "target": "Torso_Control"},
+            ]
+        }
+        pairs = rigging._parse_bone_pairs(data, ["Chest_Control"], ["Torso_Control"])
         self.assertEqual(pairs, [("Chest_Control", "Torso_Control")])
 
     def test_no_pairs_returns_none(self):
@@ -84,9 +84,13 @@ class TestMatchBones(unittest.TestCase):
     """rigging.match_bones: control filtering, messaging, and error handling."""
 
     def test_returns_pairs_and_message(self):
-        response = json.dumps({"pairs": [
-            {"source": "Hand_Control.L", "target": "Hand_Control.L"},
-        ]})
+        response = json.dumps(
+            {
+                "pairs": [
+                    {"source": "Hand_Control.L", "target": "Hand_Control.L"},
+                ]
+            }
+        )
         with mock.patch.object(rigging.ollama, "chat", return_value=response):
             pairs, message, raw = rigging.match_bones(
                 ["Hand_Control.L"], ["Hand_Control.L"]
@@ -101,10 +105,14 @@ class TestMatchBones(unittest.TestCase):
         The response maps a non-control bone (Root) that exists in the full
         input but not in the control-only subset, so it must be dropped.
         """
-        response = json.dumps({"pairs": [
-            {"source": "Root", "target": "Root"},
-            {"source": "Hand_Control.L", "target": "Hand_Control.L"},
-        ]})
+        response = json.dumps(
+            {
+                "pairs": [
+                    {"source": "Root", "target": "Root"},
+                    {"source": "Hand_Control.L", "target": "Hand_Control.L"},
+                ]
+            }
+        )
         with mock.patch.object(rigging.ollama, "chat", return_value=response):
             pairs, _, _ = rigging.match_bones(
                 ["Root", "Hand_Control.L"], ["Root", "Hand_Control.L"]
@@ -140,13 +148,18 @@ class TestParseSystems(unittest.TestCase):
     """rigging._parse_systems: validation of raw classification responses."""
 
     def test_spine_pelvis_and_vertebrae(self):
-        data = {"systems": [
-            {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]},
-        ]}
+        data = {
+            "systems": [
+                {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]},
+            ]
+        }
         systems = rigging._parse_systems(data, ["Hips", "Spine", "Spine1"])
-        self.assertEqual(systems, [
-            {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]},
-        ])
+        self.assertEqual(
+            systems,
+            [
+                {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]},
+            ],
+        )
 
     def test_case_insensitive_resolution(self):
         data = {"systems": [{"type": "spine", "pelvis": "hips", "vertebrae": []}]}
@@ -155,19 +168,30 @@ class TestParseSystems(unittest.TestCase):
 
     def test_arm_requires_full_chain(self):
         """An arm missing upper_arm, forearm, or hand is dropped entirely."""
-        data = {"systems": [
-            {"type": "arm", "side": "L", "upper_arm": "LeftArm",
-             "forearm": "LeftForeArm"},
-        ]}
-        self.assertIsNone(
-            rigging._parse_systems(data, ["LeftArm", "LeftForeArm"])
-        )
+        data = {
+            "systems": [
+                {
+                    "type": "arm",
+                    "side": "L",
+                    "upper_arm": "LeftArm",
+                    "forearm": "LeftForeArm",
+                },
+            ]
+        }
+        self.assertIsNone(rigging._parse_systems(data, ["LeftArm", "LeftForeArm"]))
 
     def test_arm_full_with_defaults_and_shoulder(self):
-        data = {"systems": [
-            {"type": "arm", "upper_arm": "LeftArm", "forearm": "LeftForeArm",
-             "hand": "LeftHand", "shoulder": "LeftShoulder"},
-        ]}
+        data = {
+            "systems": [
+                {
+                    "type": "arm",
+                    "upper_arm": "LeftArm",
+                    "forearm": "LeftForeArm",
+                    "hand": "LeftHand",
+                    "shoulder": "LeftShoulder",
+                },
+            ]
+        }
         systems = rigging._parse_systems(
             data, ["LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand"]
         )
@@ -177,13 +201,18 @@ class TestParseSystems(unittest.TestCase):
         self.assertEqual(arm["upper_arm"], "LeftArm")
 
     def test_leg_toe_optional(self):
-        data = {"systems": [
-            {"type": "leg", "side": "R", "upper_leg": "RightUpLeg",
-             "lower_leg": "RightLeg", "foot": "RightFoot"},
-        ]}
-        systems = rigging._parse_systems(
-            data, ["RightUpLeg", "RightLeg", "RightFoot"]
-        )
+        data = {
+            "systems": [
+                {
+                    "type": "leg",
+                    "side": "R",
+                    "upper_leg": "RightUpLeg",
+                    "lower_leg": "RightLeg",
+                    "foot": "RightFoot",
+                },
+            ]
+        }
+        systems = rigging._parse_systems(data, ["RightUpLeg", "RightLeg", "RightFoot"])
         self.assertEqual(systems[0]["side"], "R")
         self.assertIsNone(systems[0]["toe"])
 
@@ -192,21 +221,27 @@ class TestParseSystems(unittest.TestCase):
         self.assertIsNone(rigging._parse_systems(data, ["Neck"]))
 
     def test_finger_name_lowercased(self):
-        data = {"systems": [
-            {"type": "finger", "name": "Index", "side": "L",
-             "chain": ["LeftHandIndex1", "LeftHandIndex2"]},
-        ]}
-        systems = rigging._parse_systems(
-            data, ["LeftHandIndex1", "LeftHandIndex2"]
-        )
+        data = {
+            "systems": [
+                {
+                    "type": "finger",
+                    "name": "Index",
+                    "side": "L",
+                    "chain": ["LeftHandIndex1", "LeftHandIndex2"],
+                },
+            ]
+        }
+        systems = rigging._parse_systems(data, ["LeftHandIndex1", "LeftHandIndex2"])
         self.assertEqual(systems[0]["name"], "index")
         self.assertEqual(systems[0]["chain"], ["LeftHandIndex1", "LeftHandIndex2"])
 
     def test_hallucinated_bones_filtered(self):
         """Bone names not in the input list are stripped from chains and slots."""
-        data = {"systems": [
-            {"type": "spine", "pelvis": "Ghost", "vertebrae": ["Spine", "Phantom"]},
-        ]}
+        data = {
+            "systems": [
+                {"type": "spine", "pelvis": "Ghost", "vertebrae": ["Spine", "Phantom"]},
+            ]
+        }
         systems = rigging._parse_systems(data, ["Spine"])
         self.assertIsNone(systems[0]["pelvis"])
         self.assertEqual(systems[0]["vertebrae"], ["Spine"])
@@ -223,20 +258,30 @@ class TestParseSystems(unittest.TestCase):
 
     def test_type_keyed_entry_is_normalized(self):
         """Entries shaped as {"spine": {...}} are flattened instead of dropped."""
-        data = {"systems": [
-            {"spine": {"pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]}},
-        ]}
+        data = {
+            "systems": [
+                {"spine": {"pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]}},
+            ]
+        }
         systems = rigging._parse_systems(data, ["Hips", "Spine", "Spine1"])
-        self.assertEqual(systems, [
-            {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]},
-        ])
+        self.assertEqual(
+            systems,
+            [
+                {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]},
+            ],
+        )
 
     def test_list_for_single_value_field_takes_first_resolved(self):
         """A list handed to a single-value slot resolves to its first valid bone."""
-        data = {"systems": [
-            {"type": "head", "neck": ["neck_01", "neck_02"],
-             "head": ["Head", "head_end", "headfront"]},
-        ]}
+        data = {
+            "systems": [
+                {
+                    "type": "head",
+                    "neck": ["neck_01", "neck_02"],
+                    "head": ["Head", "head_end", "headfront"],
+                },
+            ]
+        }
         systems = rigging._parse_systems(
             data, ["neck_01", "neck_02", "Head", "head_end", "headfront"]
         )
@@ -248,10 +293,20 @@ class TestClassifyBones(unittest.TestCase):
     """rigging.classify_bones: summary messaging and error handling."""
 
     def test_returns_systems_and_summary(self):
-        response = json.dumps({"systems": [
-            {"type": "leg", "side": "L", "upper_leg": "LeftUpLeg",
-             "lower_leg": "LeftLeg", "foot": "LeftFoot", "toe": "LeftToeBase"},
-        ]})
+        response = json.dumps(
+            {
+                "systems": [
+                    {
+                        "type": "leg",
+                        "side": "L",
+                        "upper_leg": "LeftUpLeg",
+                        "lower_leg": "LeftLeg",
+                        "foot": "LeftFoot",
+                        "toe": "LeftToeBase",
+                    },
+                ]
+            }
+        )
         bones = ["LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase"]
         with mock.patch.object(rigging.ollama, "chat", return_value=response):
             systems, message, raw = rigging.classify_bones(bones)
@@ -260,10 +315,19 @@ class TestClassifyBones(unittest.TestCase):
         self.assertIn("toe=yes", message)
 
     def test_leg_without_toe_flagged_in_summary(self):
-        response = json.dumps({"systems": [
-            {"type": "leg", "side": "R", "upper_leg": "RightUpLeg",
-             "lower_leg": "RightLeg", "foot": "RightFoot"},
-        ]})
+        response = json.dumps(
+            {
+                "systems": [
+                    {
+                        "type": "leg",
+                        "side": "R",
+                        "upper_leg": "RightUpLeg",
+                        "lower_leg": "RightLeg",
+                        "foot": "RightFoot",
+                    },
+                ]
+            }
+        )
         bones = ["RightUpLeg", "RightLeg", "RightFoot"]
         with mock.patch.object(rigging.ollama, "chat", return_value=response):
             _, message, _ = rigging.classify_bones(bones)
@@ -285,9 +349,7 @@ class TestClassifyBones(unittest.TestCase):
         self.assertEqual(raw, "")
 
     def test_generic_error_is_reported(self):
-        with mock.patch.object(
-            rigging.ollama, "chat", side_effect=ValueError("nope")
-        ):
+        with mock.patch.object(rigging.ollama, "chat", side_effect=ValueError("nope")):
             systems, message, _ = rigging.classify_bones(["Head"])
         self.assertIsNone(systems)
         self.assertIn("Ollama error", message)
@@ -298,14 +360,15 @@ class TestFormatHierarchy(unittest.TestCase):
 
     def test_indented_tree(self):
         parents = {
-            "Hips": None, "Spine02": "Hips", "Spine01": "Spine02", "Spine": "Spine01",
+            "Hips": None,
+            "Spine02": "Hips",
+            "Spine01": "Spine02",
+            "Spine": "Spine01",
         }
         text = rigging._format_hierarchy(
             ["Hips", "Spine02", "Spine01", "Spine"], parents
         )
-        self.assertEqual(
-            text, "- Hips\n  - Spine02\n    - Spine01\n      - Spine"
-        )
+        self.assertEqual(text, "- Hips\n  - Spine02\n    - Spine01\n      - Spine")
 
     def test_orphan_parent_treated_as_root(self):
         """A parent that is not itself in the bone list starts a new root."""
@@ -366,23 +429,48 @@ class TestExtractBoneNames(unittest.TestCase):
     def test_collects_names_across_system_types(self):
         systems = [
             {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1"]},
-            {"type": "arm", "side": "L", "shoulder": "LeftShoulder",
-             "upper_arm": "LeftArm", "forearm": "LeftForeArm", "hand": "LeftHand"},
-            {"type": "leg", "side": "R", "upper_leg": "RightUpLeg",
-             "lower_leg": "RightLeg", "foot": "RightFoot", "toe": None},
+            {
+                "type": "arm",
+                "side": "L",
+                "shoulder": "LeftShoulder",
+                "upper_arm": "LeftArm",
+                "forearm": "LeftForeArm",
+                "hand": "LeftHand",
+            },
+            {
+                "type": "leg",
+                "side": "R",
+                "upper_leg": "RightUpLeg",
+                "lower_leg": "RightLeg",
+                "foot": "RightFoot",
+                "toe": None,
+            },
             {"type": "head", "neck": "Neck", "head": "Head"},
-            {"type": "finger", "name": "index", "side": "L",
-             "chain": ["LeftHandIndex1", "LeftHandIndex2"]},
+            {
+                "type": "finger",
+                "name": "index",
+                "side": "L",
+                "chain": ["LeftHandIndex1", "LeftHandIndex2"],
+            },
         ]
         names = rigging.extract_bone_names(systems)
         self.assertEqual(
             names,
             {
-                "Hips", "Spine", "Spine1",
-                "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand",
-                "RightUpLeg", "RightLeg", "RightFoot",
-                "Neck", "Head",
-                "LeftHandIndex1", "LeftHandIndex2",
+                "Hips",
+                "Spine",
+                "Spine1",
+                "LeftShoulder",
+                "LeftArm",
+                "LeftForeArm",
+                "LeftHand",
+                "RightUpLeg",
+                "RightLeg",
+                "RightFoot",
+                "Neck",
+                "Head",
+                "LeftHandIndex1",
+                "LeftHandIndex2",
             },
         )
         self.assertNotIn(None, names)
