@@ -1268,7 +1268,7 @@ def _setup_finger_pose(
         control_name = _finger_ctrl_name(system, i)
         if control_name in pose_bones:
             _assign_shape(
-                pose_bones[control_name], shapes["circle"], True, 0.5 if i == 0 else 0.3
+                pose_bones[control_name], shapes["circle"], 0.5 if i == 0 else 0.3
             )
             _bone_color(pose_bones[control_name], color)
 
