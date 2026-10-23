@@ -466,23 +466,45 @@ class ActionSelectionItem(bpy.types.PropertyGroup):
 
 
 class TransferAnimationOperator(bpy.types.Operator):
-    """Transfer animation to selected armatures using Ollama-based bone matching.
-
-    The operator lists all actions in the file as a checklist in the dialog.
-    Bone names are extracted from each action's fcurves, so no source armature
-    is required. Each selected action is copied and remapped for every target
-    armature in the viewport selection.
-    """
+    """Transfer actions from the file to the selected armatures using Ollama-based bone matching."""
 
     bl_idname = "armature.transfer_animation"
     bl_label = "Transfer Animation"
     bl_description = (
-        "Copy actions from the file onto the selected armatures by matching bones "
-        "and rewriting fcurves, without baking or scaling. Matches control bones "
-        "when present, otherwise deform bones. Best for rigs that already share a "
-        "rest pose. To retarget external animation onto a control rig, use Import "
-        "Animation instead."
+        "Transfer actions from the file onto the selected armatures, matching bones "
+        "by role. Matches control bones when present, otherwise deform bones. To "
+        "retarget external animation onto a control rig, use Import Animation "
+        "instead."
     )
+
+    method: bpy.props.EnumProperty(
+        name="Method",
+        description=(
+            "How the animation reaches the target. Copy rewrites the action's curves "
+            "as they are; bake plays the action on its source armature and keys the "
+            "result"
+        ),
+        items=[
+            (
+                animation.TRANSFER_METHOD_COPY,
+                "Copy",
+                "Rename the action's fcurves onto the matched bones and keep every key "
+                "as it is. Fast and lossless, but the target must share the source's "
+                "rest pose, bone axes, rotation mode and proportions. Use this for "
+                "variants of the same skeleton",
+            ),
+            (
+                animation.TRANSFER_METHOD_BAKE,
+                "Bake",
+                "Play the action on its source armature in the scene and key the "
+                "matched bones on every frame. Differences in bone axes, rolls, "
+                "rotation modes and proportions are compensated, and root motion is "
+                "scaled to fit. Both rigs should still rest in a similar pose, such as "
+                "a T-pose",
+            ),
+        ],
+        default=animation.TRANSFER_METHOD_COPY,
+    )  # pyright: ignore [reportInvalidTypeForm]
 
     action_items: bpy.props.CollectionProperty(
         type=ActionSelectionItem
@@ -507,6 +529,7 @@ class TransferAnimationOperator(bpy.types.Operator):
         layout = self.layout
         if not ollama.reachable():
             layout.label(text="Ollama is not running.", icon="ERROR")
+        layout.prop(self, "method")
         layout.label(text="Actions to transfer:")
         for item in self.action_items:
             row = layout.row()
@@ -527,9 +550,11 @@ class TransferAnimationOperator(bpy.types.Operator):
             self.report({"WARNING"}, "No actions selected.")
             return {"CANCELLED"}
 
+        armatures = [obj for obj in context.scene.objects if obj.type == "ARMATURE"]
         total_transferred = 0
         for target in targets:
             target_bone_names = [bone.name for bone in target.data.bones]
+            candidates = [armature for armature in armatures if armature != target]
             first_target_action = None
 
             for action in actions:
@@ -537,6 +562,17 @@ class TransferAnimationOperator(bpy.types.Operator):
                 if not source_bone_names:
                     self.report({"WARNING"}, f"{action.name}: no bone fcurves found.")
                     continue
+
+                source = None
+                if self.method == animation.TRANSFER_METHOD_BAKE:
+                    source = animation.find_source_armature(action, candidates)
+                    if source is None:
+                        self.report(
+                            {"WARNING"},
+                            f"{target.name} / {action.name}: no armature in the "
+                            "scene holds the action's bones to bake from.",
+                        )
+                        continue
 
                 pairs, message, raw = rigging.match_bones(
                     source_bone_names, target_bone_names
@@ -552,9 +588,14 @@ class TransferAnimationOperator(bpy.types.Operator):
 
                 bone_mapping = dict(pairs)
                 target_action_name = f"{target.name}_{action.name}"
-                target_action = animation.copy_and_remap_animation(
-                    action, target_action_name, bone_mapping
-                )
+                if self.method == animation.TRANSFER_METHOD_BAKE:
+                    target_action = animation.bake_remapped_animation(
+                        source, action, target, target_action_name, bone_mapping
+                    )
+                else:
+                    target_action = animation.copy_and_remap_animation(
+                        action, target_action_name, bone_mapping
+                    )
                 if target_action is None:
                     continue
 
