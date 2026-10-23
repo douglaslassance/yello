@@ -573,9 +573,6 @@ class RemoveControlRigOperator(bpy.types.Operator):
             return {"CANCELLED"}
         bpy.ops.object.mode_set(mode="POSE")
         rigging.remove_control_rig_bones(skeleton)
-        spine_curve = bpy.data.objects.get("Spine_Curve")
-        if spine_curve:
-            bpy.data.objects.remove(spine_curve, do_unlink=True)
         for container_name in ("Shapes", "Curves"):
             container = bpy.data.objects.get(container_name)
             if container:

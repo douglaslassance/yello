@@ -1883,9 +1883,25 @@ def wire_deform_constraints(
             bone.hide = True
 
 
+def _is_control_rig_spline_ik(constraint: bpy.types.Constraint) -> bool:
+    """Return whether the constraint is the control rig Spline IK or a numbered duplicate."""
+    return constraint.type == "SPLINE_IK" and constraint.name.startswith(
+        CONTROL_RIG_CONSTRAINT_NAME
+    )
+
+
+def _remove_curve_object(curve_object: bpy.types.Object) -> None:
+    """Delete a curve object and its curve data once nothing else uses it."""
+    curve = curve_object.data
+    bpy.data.objects.remove(curve_object, do_unlink=True)
+    if curve.users == 0:
+        bpy.data.curves.remove(curve)
+
+
 def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
     """Remove all control bones (identified by the _Control suffix) and any constraints targeting them.
 
+    The spine Spline IK constraint and its curve are removed too.
     Should be called in POSE mode. Internally switches to EDIT mode to delete bones,
     then returns to OBJECT mode.
     """
@@ -1894,12 +1910,20 @@ def remove_control_rig_bones(skeleton: bpy.types.Object) -> None:
         for b in skeleton.data.bones
         if CONTROL_SUFFIX in b.name or MECHANISM_SUFFIX in b.name
     }
-    if not control_bone_names:
-        return
+    spine_curves = []
     for pose_bone in skeleton.pose.bones:
         for constraint in list(pose_bone.constraints):
-            if getattr(constraint, "subtarget", None) in control_bone_names:
+            if _is_control_rig_spline_ik(constraint):
+                curve_object = constraint.target
+                if curve_object is not None and curve_object not in spine_curves:
+                    spine_curves.append(curve_object)
                 pose_bone.constraints.remove(constraint)
+            elif getattr(constraint, "subtarget", None) in control_bone_names:
+                pose_bone.constraints.remove(constraint)
+    for curve_object in spine_curves:
+        _remove_curve_object(curve_object)
+    if not control_bone_names:
+        return
     for bone in skeleton.data.bones:
         if CONTROL_SUFFIX not in bone.name:
             bone.hide = False
