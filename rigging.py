@@ -6,7 +6,7 @@ import math
 import mathutils
 import urllib.error
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 logger = logging.getLogger(__name__)
 
@@ -1530,6 +1530,52 @@ def _measure_leg_length(
     return None
 
 
+def _create_source_pole_bones(
+    source: bpy.types.Object, source_systems: list[SystemDict]
+) -> dict[str, str]:
+    """Create rest-positioned pole helper bones on the source armature.
+
+    Each helper sits at the knee's pole position and is parented to the knee
+    bone so it moves rigidly with the leg. Returns a mapping of side to bone
+    name. The source armature is deleted after retargeting, so these helpers
+    are temporary.
+    """
+    computations = {}
+    for system in source_systems:
+        if system.get("type") != "leg":
+            continue
+        upper = _rest_bone_world(source, system.get("upper_leg"))
+        lower = _rest_bone_world(source, system.get("lower_leg"))
+        if not upper or not lower:
+            continue
+        pole_world = _calc_pole_pos(upper[0], lower[0], lower[1])
+        computations[system.get("side", "L")] = (pole_world, system.get("lower_leg"))
+    if not computations:
+        return {}
+
+    inverse = source.matrix_world.inverted()
+    previous_active = bpy.context.view_layer.objects.active
+    bpy.context.view_layer.objects.active = source
+    bpy.ops.object.mode_set(mode="EDIT")
+    poles = {}
+    edit_bones = source.data.edit_bones
+    for side, (pole_world, knee_bone_name) in computations.items():
+        head_local = inverse @ pole_world
+        name = f"Retarget_Pole.{side}"
+        edit_bone = edit_bones.new(name)
+        edit_bone.head = head_local
+        edit_bone.tail = head_local + mathutils.Vector((0.0, 0.0, 0.1))
+        edit_bone.use_deform = False
+        knee = edit_bones.get(knee_bone_name)
+        if knee is not None:
+            edit_bone.parent = knee
+        poles[side] = name
+    bpy.ops.object.mode_set(mode="OBJECT")
+    if previous_active is not None:
+        bpy.context.view_layer.objects.active = previous_active
+    return poles
+
+
 def _create_retarget_bones(
     target: bpy.types.Object,
     source: bpy.types.Object,
@@ -1539,33 +1585,20 @@ def _create_retarget_bones(
     source_inverse = source.matrix_world.inverted()
     to_source = source_inverse.to_3x3() @ target.matrix_world.to_3x3()
     target_bones = target.data.bones
-    poles = {}
-    for system in source_systems:
-        if system.get("type") != "leg":
-            continue
-        upper = _rest_bone_world(source, system.get("upper_leg"))
-        lower = _rest_bone_world(source, system.get("lower_leg"))
-        if upper and lower:
-            poles[f"Leg_Pole_Control.{system.get('side', 'L')}"] = (
-                source_inverse @ _calc_pole_pos(upper[0], lower[0], lower[1]),
-                system.get("lower_leg"),
-            )
-
     previous_active = bpy.context.view_layer.objects.active
     bpy.context.view_layer.objects.active = source
     bpy.ops.object.mode_set(mode="EDIT")
     edit_bones = source.data.edit_bones
     helpers = {}
 
-    def add_helper(control_name, parent_name, head, tail, z_axis=None):
-        parent = edit_bones.get(parent_name) if parent_name else None
+    def add_helper(control_name, parent_name, head, tail, z_axis):
+        parent = edit_bones.get(parent_name)
         if parent is None or control_name not in target_bones:
             return
         name = f"Retarget_{control_name.replace(CONTROL_SUFFIX, '')}"
         edit_bone = edit_bones.new(name)
         edit_bone.head, edit_bone.tail = head, tail
-        if z_axis is not None:
-            edit_bone.align_roll(z_axis)
+        edit_bone.align_roll(z_axis)
         edit_bone.use_deform = False
         edit_bone.parent = parent
         helpers[control_name] = name
@@ -1600,13 +1633,6 @@ def _create_retarget_bones(
                     bone.tail.copy(),
                     reference,
                 )
-    for control_name, (head, knee_bone_name) in poles.items():
-        add_helper(
-            control_name,
-            knee_bone_name,
-            head,
-            head + mathutils.Vector((0.0, 0.0, 0.1)),
-        )
 
     bpy.ops.object.mode_set(mode="OBJECT")
     if previous_active is not None:
@@ -1614,25 +1640,153 @@ def _create_retarget_bones(
     return helpers
 
 
+def has_control_rig(armature: bpy.types.Object) -> bool:
+    """Return whether the armature carries Yello control bones."""
+    return any(CONTROL_SUFFIX in bone.name for bone in armature.data.bones)
+
+
+class RetargetBinding(NamedTuple):
+    """A target bone that follows a source bone while retargeting."""
+
+    target_bone: str
+    source_bone: str | None
+    location: bool = False
+    rotation: bool = True
+
+
+ROLE_FIELDS: dict[str, tuple[str, ...]] = {
+    "spine": ("pelvis",),
+    "arm": ("shoulder", "upper_arm", "forearm", "hand"),
+    "leg": ("upper_leg", "lower_leg", "foot", "toe"),
+    "head": ("neck", "head"),
+}
+CHAIN_FIELDS: dict[str, str] = {"spine": "vertebrae", "finger": "chain"}
+
+
+def _spread_indices(count: int, total: int) -> list[int]:
+    """Pick count increasing indices out of range(total), keeping both ends."""
+    if count == 1:
+        return [0]
+    return [round(index * (total - 1) / (count - 1)) for index in range(count)]
+
+
+def _pair_chains(
+    source_chain: list[str], target_chain: list[str]
+) -> list[tuple[str, str]]:
+    """Pair two bone chains end to end, spreading the shorter over the longer."""
+    if not source_chain or not target_chain:
+        return []
+    if len(source_chain) <= len(target_chain):
+        indices = _spread_indices(len(source_chain), len(target_chain))
+        return [
+            (bone, target_chain[index]) for bone, index in zip(source_chain, indices)
+        ]
+    indices = _spread_indices(len(target_chain), len(source_chain))
+    return [(source_chain[index], bone) for bone, index in zip(target_chain, indices)]
+
+
+def _system_key(system: SystemDict) -> tuple[Any, Any, Any]:
+    """Return what identifies a system across skeletons: type, side and finger name."""
+    return system.get("type"), system.get("side"), system.get("name")
+
+
+def deform_bindings(
+    source_systems: list[SystemDict], target_systems: list[SystemDict]
+) -> list[RetargetBinding]:
+    """Bind each target deform bone to the source bone playing the same role."""
+    targets = {_system_key(system): system for system in target_systems}
+    bindings = []
+    for source_system in source_systems:
+        target_system = targets.get(_system_key(source_system))
+        if target_system is None:
+            continue
+        system_type = source_system["type"]
+        pairs = [
+            (source_system.get(field), target_system.get(field))
+            for field in ROLE_FIELDS.get(system_type, ())
+        ]
+        chain_field = CHAIN_FIELDS.get(system_type)
+        if chain_field:
+            pairs += _pair_chains(
+                source_system.get(chain_field) or [],
+                target_system.get(chain_field) or [],
+            )
+        pelvis = source_system.get("pelvis")
+        for source_bone, target_bone in pairs:
+            if source_bone and target_bone:
+                bindings.append(
+                    RetargetBinding(
+                        target_bone, source_bone, location=source_bone == pelvis
+                    )
+                )
+    return bindings
+
+
+def control_bindings(source_systems: list[SystemDict]) -> list[RetargetBinding]:
+    """Bind the control rig's controls to the source bones they stand for."""
+    bindings = []
+    for system in source_systems:
+        system_type = system.get("type")
+        side = system.get("side", "L")
+        if system_type == "spine":
+            bindings.append(
+                RetargetBinding("Hips_Control", system.get("pelvis"), location=True)
+            )
+            vertebrae = system.get("vertebrae") or []
+            if vertebrae:
+                bindings.append(RetargetBinding("Chest_Control", vertebrae[-1]))
+        elif system_type == "arm":
+            bindings += [
+                RetargetBinding(f"Shoulder_Control.{side}", system.get("shoulder")),
+                RetargetBinding(f"UpperArm_Control.{side}", system.get("upper_arm")),
+                RetargetBinding(f"Forearm_Control.{side}", system.get("forearm")),
+                RetargetBinding(f"Hand_Control.{side}", system.get("hand")),
+            ]
+        elif system_type == "leg":
+            bindings += [
+                RetargetBinding(
+                    f"IK_Target_Control.{side}", system.get("foot"), location=True
+                ),
+                RetargetBinding(f"Toe_Control.{side}", system.get("toe")),
+            ]
+        elif system_type == "head":
+            bindings += [
+                RetargetBinding("Neck_Control", system.get("neck")),
+                RetargetBinding("Head_Control", system.get("head")),
+            ]
+        elif system_type == "finger":
+            bindings += [
+                RetargetBinding(_finger_ctrl_name(system, index), bone)
+                for index, bone in enumerate(system.get("chain") or [])
+            ]
+    return bindings
+
+
+def retarget_bindings(
+    target: bpy.types.Object,
+    source_systems: list[SystemDict],
+    target_systems: list[SystemDict] | None,
+) -> list[RetargetBinding]:
+    """Bind the target's controls, or its deform bones without a control rig."""
+    if has_control_rig(target):
+        return control_bindings(source_systems)
+    return deform_bindings(source_systems, target_systems or [])
+
+
 def _add_retarget_constraint(
     target: bpy.types.Object,
-    control_name: str,
+    bone_name: str,
     source: bpy.types.Object,
     source_bone: str | None,
     location: bool = False,
     rotation: bool = True,
 ) -> bool:
-    """Constrain a target control bone to a source bone for baking.
-
-    Rotation is copied for FK controls (proportion independent); location is
-    copied for the root and IK targets. Constraints are world space and tagged
-    with RETARGET_CONSTRAINT_NAME so they can be removed after baking.
-    """
-    if source_bone is None or control_name not in target.pose.bones:
+    """Constrain a target bone to a source bone in world space until baked."""
+    if source_bone is None or bone_name not in target.pose.bones:
         return False
     if source_bone not in source.pose.bones:
         return False
-    pose_bone = target.pose.bones[control_name]
+    pose_bone = target.pose.bones[bone_name]
     if location:
         constraint = pose_bone.constraints.new("COPY_LOCATION")
         constraint.name = RETARGET_CONSTRAINT_NAME
@@ -1648,18 +1802,13 @@ def _add_retarget_constraint(
     return True
 
 
-def bind_controls_to_source(
-    target: bpy.types.Object,
+def _match_source_scale(
     source: bpy.types.Object,
     source_systems: list[SystemDict],
-) -> list[str]:
-    """Constrain the target's controls to the classified source skeleton and return the constrained names.
-
-    The source is uniformly scaled to match the target's leg length so root and
-    foot positions line up. FK controls copy rotation only, which is
-    proportion independent; the root and IK targets copy location as well.
-    """
-    target_systems = load_systems(target)
+    target: bpy.types.Object,
+    target_systems: list[SystemDict] | None,
+) -> None:
+    """Scale the source uniformly so its leg length matches the target's."""
     source_length = _measure_leg_length(source, source_systems)
     target_length = _measure_leg_length(target, target_systems)
     if source_length and target_length:
@@ -1667,40 +1816,45 @@ def bind_controls_to_source(
         source.scale = tuple(component * scale_factor for component in source.scale)
         bpy.context.view_layer.update()
 
-    helpers = _create_retarget_bones(target, source, source_systems)
+
+def bind_to_source(
+    target: bpy.types.Object,
+    source: bpy.types.Object,
+    source_systems: list[SystemDict],
+    target_systems: list[SystemDict] | None,
+) -> list[str]:
+    """Constrain the target to the rescaled source for baking, returning bound bones."""
+    _match_source_scale(source, source_systems, target, target_systems)
+    bindings = retarget_bindings(target, source_systems, target_systems)
+    if has_control_rig(target):
+        helpers = _create_retarget_bones(target, source, source_systems)
+        bindings = [
+            binding._replace(source_bone=helpers.get(binding.target_bone))
+            for binding in bindings
+        ]
+        pole_bones = _create_source_pole_bones(source, source_systems)
+        bindings += [
+            RetargetBinding(
+                f"Leg_Pole_Control.{side}", bone, location=True, rotation=False
+            )
+            for side, bone in pole_bones.items()
+        ]
     constrained = []
-
-    def bind(control_name, location=False, rotation=True):
+    for binding in bindings:
         if _add_retarget_constraint(
-            target, control_name, source, helpers.get(control_name), location, rotation
+            target,
+            binding.target_bone,
+            source,
+            binding.source_bone,
+            binding.location,
+            binding.rotation,
         ):
-            constrained.append(control_name)
-
-    for system in source_systems:
-        system_type = system.get("type")
-        side = system.get("side", "L")
-        if system_type == "spine":
-            bind("Hips_Control", location=True)
-            bind("Chest_Control")
-        elif system_type == "arm":
-            for role in ("Shoulder", "UpperArm", "Forearm", "Hand"):
-                bind(f"{role}_Control.{side}")
-        elif system_type == "leg":
-            bind(f"IK_Target_Control.{side}", location=True)
-            bind(f"Toe_Control.{side}")
-            bind(f"Leg_Pole_Control.{side}", location=True, rotation=False)
-        elif system_type == "head":
-            bind("Neck_Control")
-            bind("Head_Control")
-        elif system_type == "finger":
-            for index in range(len(system.get("chain") or [])):
-                bind(_finger_ctrl_name(system, index))
-
+            constrained.append(binding.target_bone)
     return constrained
 
 
 def remove_retarget_constraints(target: bpy.types.Object) -> None:
-    """Remove all retarget constraints previously added to control bones."""
+    """Remove all retarget constraints previously added to the target's bones."""
     for pose_bone in target.pose.bones:
         for constraint in list(pose_bone.constraints):
             if constraint.name == RETARGET_CONSTRAINT_NAME:

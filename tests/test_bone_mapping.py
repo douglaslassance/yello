@@ -476,5 +476,156 @@ class TestExtractBoneNames(unittest.TestCase):
         self.assertNotIn(None, names)
 
 
+class TestPairChains(unittest.TestCase):
+    """rigging._pair_chains: pairing bone chains of different lengths."""
+
+    def test_equal_lengths_pair_in_order(self):
+        pairs = rigging._pair_chains(["A", "B"], ["1", "2"])
+        self.assertEqual(pairs, [("A", "1"), ("B", "2")])
+
+    def test_shorter_source_spreads_over_target(self):
+        pairs = rigging._pair_chains(["A", "B", "C"], ["1", "2", "3", "4", "5"])
+        self.assertEqual(pairs, [("A", "1"), ("B", "3"), ("C", "5")])
+
+    def test_longer_source_keeps_both_ends(self):
+        pairs = rigging._pair_chains(["A", "B", "C", "D", "E"], ["1", "2"])
+        self.assertEqual(pairs, [("A", "1"), ("E", "2")])
+
+    def test_single_bone_pairs_with_first(self):
+        self.assertEqual(rigging._pair_chains(["A"], ["1", "2", "3"]), [("A", "1")])
+
+    def test_empty_chain_pairs_nothing(self):
+        self.assertEqual(rigging._pair_chains([], ["1"]), [])
+
+
+SOURCE_SYSTEMS = [
+    {"type": "spine", "pelvis": "Hips", "vertebrae": ["Spine", "Spine1", "Spine2"]},
+    {
+        "type": "arm",
+        "side": "L",
+        "shoulder": "LeftShoulder",
+        "upper_arm": "LeftArm",
+        "forearm": "LeftForeArm",
+        "hand": "LeftHand",
+    },
+    {
+        "type": "leg",
+        "side": "R",
+        "upper_leg": "RightUpLeg",
+        "lower_leg": "RightLeg",
+        "foot": "RightFoot",
+        "toe": "RightToeBase",
+    },
+    {"type": "head", "neck": "Neck", "head": "Head"},
+    {"type": "finger", "name": "index", "side": "L", "chain": ["LeftIndex1"]},
+]
+
+
+class TestDeformBindings(unittest.TestCase):
+    """rigging.deform_bindings: pairing deform bones by role across skeletons."""
+
+    def test_bones_paired_by_role_and_side(self):
+        target_systems = [
+            {
+                "type": "spine",
+                "pelvis": "pelvis",
+                "vertebrae": [f"spine_0{index}" for index in range(1, 6)],
+            },
+            {
+                "type": "arm",
+                "side": "L",
+                "shoulder": "clavicle_l",
+                "upper_arm": "upperarm_l",
+                "forearm": "lowerarm_l",
+                "hand": "hand_l",
+            },
+            {
+                "type": "leg",
+                "side": "R",
+                "upper_leg": "thigh_r",
+                "lower_leg": "calf_r",
+                "foot": "foot_r",
+                "toe": None,
+            },
+            {"type": "head", "neck": "neck_01", "head": "head"},
+        ]
+        bindings = rigging.deform_bindings(SOURCE_SYSTEMS, target_systems)
+        self.assertEqual(
+            [(binding.source_bone, binding.target_bone) for binding in bindings],
+            [
+                ("Hips", "pelvis"),
+                ("Spine", "spine_01"),
+                ("Spine1", "spine_03"),
+                ("Spine2", "spine_05"),
+                ("LeftShoulder", "clavicle_l"),
+                ("LeftArm", "upperarm_l"),
+                ("LeftForeArm", "lowerarm_l"),
+                ("LeftHand", "hand_l"),
+                ("RightUpLeg", "thigh_r"),
+                ("RightLeg", "calf_r"),
+                ("RightFoot", "foot_r"),
+                ("Neck", "neck_01"),
+                ("Head", "head"),
+            ],
+        )
+        self.assertEqual(
+            [binding.target_bone for binding in bindings if binding.location],
+            ["pelvis"],
+        )
+
+    def test_other_side_is_not_paired(self):
+        target_systems = [
+            {
+                "type": "arm",
+                "side": "R",
+                "upper_arm": "upperarm_r",
+                "forearm": "lowerarm_r",
+                "hand": "hand_r",
+            }
+        ]
+        self.assertEqual(rigging.deform_bindings(SOURCE_SYSTEMS, target_systems), [])
+
+
+class TestControlBindings(unittest.TestCase):
+    """rigging.control_bindings: pairing control rig controls with source bones."""
+
+    def test_controls_bound_to_their_source_bones(self):
+        bindings = {
+            binding.target_bone: binding
+            for binding in rigging.control_bindings(SOURCE_SYSTEMS)
+        }
+        self.assertEqual(bindings["Hips_Control"].source_bone, "Hips")
+        self.assertTrue(bindings["Hips_Control"].location)
+        self.assertEqual(bindings["Chest_Control"].source_bone, "Spine2")
+        self.assertEqual(bindings["UpperArm_Control.L"].source_bone, "LeftArm")
+        self.assertEqual(bindings["IK_Target_Control.R"].source_bone, "RightFoot")
+        self.assertTrue(bindings["IK_Target_Control.R"].location)
+        self.assertEqual(bindings["Index.001_Control.L"].source_bone, "LeftIndex1")
+        self.assertFalse(bindings["Head_Control"].location)
+
+
+class TestRetargetBindings(unittest.TestCase):
+    """rigging.retarget_bindings: controls when rigged, deform bones otherwise."""
+
+    @staticmethod
+    def _armature(*bone_names):
+        bones = [SimpleNamespace(name=name) for name in bone_names]
+        return SimpleNamespace(data=SimpleNamespace(bones=bones))
+
+    def test_control_rig_targets_controls(self):
+        target = self._armature("pelvis", "Hips_Control")
+        bindings = rigging.retarget_bindings(target, SOURCE_SYSTEMS, None)
+        self.assertIn("Hips_Control", [binding.target_bone for binding in bindings])
+
+    def test_plain_armature_targets_deform_bones(self):
+        target = self._armature("pelvis")
+        target_systems = [{"type": "spine", "pelvis": "pelvis", "vertebrae": []}]
+        bindings = rigging.retarget_bindings(target, SOURCE_SYSTEMS, target_systems)
+        self.assertEqual(
+            [(binding.source_bone, binding.target_bone) for binding in bindings],
+            [("Hips", "pelvis")],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
