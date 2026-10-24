@@ -4,10 +4,11 @@ import os
 import bpy
 from bpy_extras.io_utils import ImportHelper
 
-from .. import animation, io, misc, ollama, rigging
+from .. import animation, io, misc, ollama, rigging, vertex_animation
 from ..contexts import (
     AnimationContext,
     FrameRangeContext,
+    ModeContext,
     MutedFcurvesContext,
     SelectionContext,
     VisibleContext,
@@ -45,13 +46,77 @@ class ExportAnimationOperator(bpy.types.Operator):
 class ExportAnimatedMeshOperator(bpy.types.Operator):
     bl_idname = "object.export_animated_mesh"
     bl_label = "Export Animated Mesh"
-    bl_description = "Export selected animated meshes to Alembic."
+    bl_description = (
+        "Export selected animated meshes to Alembic or a vertex animation texture."
+    )
+
+    file_format: bpy.props.EnumProperty(
+        name="File Format",
+        description="The file format to export.",
+        items=[
+            ("ALEMBIC", "Alembic", "An Alembic cache"),
+            (
+                "VERTEX_ANIMATION_TEXTURE",
+                "Vertex Animation Texture",
+                (
+                    "A GLB of the first frame and an EXR of its vertex positions "
+                    "on every frame, which needs the same vertex count throughout"
+                ),
+            ),
+        ],
+        default="ALEMBIC",
+    )  # pyright: ignore [reportInvalidTypeForm]
+
+    normals: bpy.props.EnumProperty(
+        name="Normals",
+        description="Where each frame's vertex normals go.",
+        items=[
+            (
+                vertex_animation.NORMALS_PACKED_IN_ALPHA,
+                "Packed in Alpha",
+                (
+                    "Fold each normal into the alpha of its position texel, accurate "
+                    "to about 0.04°. The EXR stays the size of the positions alone"
+                ),
+            ),
+            (
+                vertex_animation.NORMALS_BOTTOM_HALF,
+                "Bottom Half",
+                "Write normals in rows under the positions, doubling the EXR's height",
+            ),
+            (
+                vertex_animation.NORMALS_SEPARATE_FILE,
+                "Separate File",
+                (
+                    "Write normals to an 8 bit PNG beside the EXR, named after it with "
+                    "a _normals suffix and accurate to about half a degree"
+                ),
+            ),
+            (
+                vertex_animation.NORMALS_NONE,
+                "None",
+                "Write no normals, so the game has to work them out",
+            ),
+        ],
+        default=vertex_animation.NORMALS_PACKED_IN_ALPHA,
+    )  # pyright: ignore [reportInvalidTypeForm]
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         return bool(bpy.data.filepath and context.mode and context.selected_objects)
 
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[str]:
+        return context.window_manager.invoke_props_dialog(self)
+
+    def draw(self, context: bpy.types.Context) -> None:
+        layout = self.layout
+        layout.prop(self, "file_format")
+        if self.file_format == "VERTEX_ANIMATION_TEXTURE":
+            layout.prop(self, "normals")
+
     def execute(self, context: bpy.types.Context) -> set[str]:
+        if self.file_format == "VERTEX_ANIMATION_TEXTURE":
+            return self._export_vertex_animation_texture(context)
         filename = os.path.splitext(bpy.data.filepath)[0] + ".abc"
         misc.make_writable(filename)
         bpy.ops.wm.alembic_export(
@@ -63,6 +128,22 @@ class ExportAnimatedMeshOperator(bpy.types.Operator):
             use_instancing=False,
             uvs=False,
         )
+        return {"FINISHED"}
+
+    def _export_vertex_animation_texture(self, context: bpy.types.Context) -> set[str]:
+        meshes = [obj for obj in context.selected_objects if obj.type == "MESH"]
+        if not meshes:
+            self.report({"ERROR"}, "Select at least one mesh.")
+            return {"CANCELLED"}
+        filename = os.path.splitext(bpy.data.filepath)[0] + ".glb"
+        try:
+            with ModeContext("OBJECT"):
+                io.export_vertex_animation_texture(
+                    meshes, filename, normals=self.normals
+                )
+        except ValueError as error:
+            self.report({"ERROR"}, str(error))
+            return {"CANCELLED"}
         return {"FINISHED"}
 
 
@@ -111,7 +192,7 @@ class ExportActionsOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     disable_armature_animation: bpy.props.BoolProperty(
-        name="Disable armature animation",
+        name="Disable Armature Animation",
         description=(
             "Ignore keys on the armature object itself so only bone animation "
             "is exported. The armature holds the first frame of its active action."
@@ -120,7 +201,7 @@ class ExportActionsOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     export_markers: bpy.props.BoolProperty(
-        name="Export markers",
+        name="Export Markers",
         description=(
             "Add each action's pose markers to the extras of its animation "
             "(ignored with FBX)."
@@ -623,7 +704,7 @@ class TransferAnimationOperator(bpy.types.Operator):
         if not ollama.reachable():
             layout.label(text="Ollama is not running.", icon="ERROR")
         layout.prop(self, "method")
-        layout.label(text="Actions to transfer:")
+        layout.label(text="Actions to Transfer:")
         for item in self.action_items:
             row = layout.row()
             row.prop(item, "selected", text=item.name)
