@@ -111,7 +111,7 @@ class ExportActionsOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     disable_armature_animation: bpy.props.BoolProperty(
-        name="Disable armature animation",
+        name="Disable Armature Animation",
         description=(
             "Ignore keys on the armature object itself so only bone animation "
             "is exported. The armature holds the first frame of its active action."
@@ -120,7 +120,7 @@ class ExportActionsOperator(bpy.types.Operator):
     )  # pyright: ignore [reportInvalidTypeForm]
 
     export_markers: bpy.props.BoolProperty(
-        name="Export markers",
+        name="Export Markers",
         description=(
             "Add each action's pose markers to the extras of its animation "
             "(ignored with FBX)."
@@ -623,7 +623,7 @@ class TransferAnimationOperator(bpy.types.Operator):
         if not ollama.reachable():
             layout.label(text="Ollama is not running.", icon="ERROR")
         layout.prop(self, "method")
-        layout.label(text="Actions to transfer:")
+        layout.label(text="Actions to Transfer:")
         for item in self.action_items:
             row = layout.row()
             row.prop(item, "selected", text=item.name)
