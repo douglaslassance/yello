@@ -33,7 +33,7 @@
 ### Writing
 
 - No em dashes (—), en dashes (–), or any other non-hyphen dash character anywhere: code, comments, UI copy, commit messages, pull request descriptions, chat. Use a comma, a colon, parentheses, or a second sentence. A spaced hyphen (" - ") standing in for a dash counts as a dash. Plain hyphens are fine in compound words and as the ASCII minus in code.
-- Sentence case for user facing strings: labels, section headers, notices, command names, settings. Acronyms and proper nouns keep their capitalization.
+- Title Case for Blender interface labels, as Blender does: operator and panel labels, property names, enum item names and headings. Sentence case for everything else the user reads, like descriptions and reports. Acronyms and proper nouns keep their capitalization.
 - Keep prose short and human. No generated wall of text, no filler, no comments restating the obvious.
 
 ### Comments and docstrings

@@ -86,3 +86,4 @@ def _load_rigging():
 
 _install_blender_stubs()
 _load_rigging()
+_load_submodule("vertex_animation")

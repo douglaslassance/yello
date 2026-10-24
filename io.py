@@ -1,13 +1,17 @@
+import datetime
 import json
+import os
 import struct
 
 import bpy
+import numpy as np
 
-from . import contexts
+from . import contexts, vertex_animation
 from .misc import make_writable, select_objects
 
 GLB_HEADER = struct.Struct("<4sII")
 GLB_CHUNK_HEADER = struct.Struct("<I4s")
+VERTEX_ANIMATION_UV_NAME = "VertexAnimation"
 
 
 def export_fbx(
@@ -141,3 +145,178 @@ def add_glb_action_markers(filepath: str) -> int:
     if tagged:
         write_glb(filepath, document, trailing_chunks)
     return tagged
+
+
+def read_world_vertices(
+    obj: bpy.types.Object, depsgraph: bpy.types.Depsgraph
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return the evaluated vertex positions and normals of an object in world space."""
+    evaluated = obj.evaluated_get(depsgraph)
+    mesh = evaluated.to_mesh()
+    positions = np.empty(len(mesh.vertices) * 3, dtype=np.float32)
+    normals = np.empty(len(mesh.vertices) * 3, dtype=np.float32)
+    mesh.vertices.foreach_get("co", positions)
+    mesh.vertex_normals.foreach_get("vector", normals)
+    evaluated.to_mesh_clear()
+    matrix = evaluated.matrix_world
+    linear = np.array(matrix.to_3x3(), dtype=np.float32)
+    normal_matrix = np.array(
+        matrix.to_3x3().inverted_safe().transposed(), dtype=np.float32
+    )
+    positions = positions.reshape(-1, 3) @ linear.T + np.array(matrix.translation)
+    normals = normals.reshape(-1, 3) @ normal_matrix.T
+    lengths = np.linalg.norm(normals, axis=1, keepdims=True)
+    return positions, normals / np.maximum(lengths, 1e-12)
+
+
+def add_vertex_animation_uvs(mesh: bpy.types.Mesh, texels: np.ndarray) -> None:
+    """Keep the render UV map first and add a second holding each vertex's texel."""
+    uv_layers = mesh.uv_layers
+    kept = next((layer.name for layer in uv_layers if layer.active_render), None)
+    for name in [layer.name for layer in uv_layers if layer.name != kept]:
+        uv_layers.remove(uv_layers[name])
+    if kept is None:
+        uv_layers.new(name="UVMap")
+    else:
+        uv_layers[kept].name = "UVMap"
+    layer = uv_layers.new(name=VERTEX_ANIMATION_UV_NAME)
+    loop_vertices = np.empty(len(mesh.loops), dtype=np.int32)
+    mesh.loops.foreach_get("vertex_index", loop_vertices)
+    coordinates = texels[loop_vertices].astype(np.float32)
+    # The glTF exporter writes V as 1 - V, so the texel's row comes out whole.
+    coordinates[:, 1] = 1.0 - coordinates[:, 1]
+    layer.uv.foreach_set("vector", coordinates.ravel())
+
+
+def create_vertex_animation_object(
+    objects: list[bpy.types.Object],
+    depsgraph: bpy.types.Depsgraph,
+    texels: np.ndarray,
+    name: str,
+) -> bpy.types.Object:
+    """Join world space copies of the evaluated objects, each vertex knowing its texel."""
+    pieces = []
+    offset = 0
+    for obj in objects:
+        mesh = bpy.data.meshes.new_from_object(
+            obj.evaluated_get(depsgraph),
+            preserve_all_data_layers=True,
+            depsgraph=depsgraph,
+        )
+        mesh.transform(obj.matrix_world)
+        if obj.matrix_world.is_negative:
+            mesh.flip_normals()
+        vertex_count = len(mesh.vertices)
+        add_vertex_animation_uvs(mesh, texels[offset : offset + vertex_count])
+        offset += vertex_count
+        piece = bpy.data.objects.new(name, mesh)
+        bpy.context.scene.collection.objects.link(piece)
+        pieces.append(piece)
+    meshes = [piece.data for piece in pieces]
+    joined = pieces[0]
+    if len(pieces) > 1:
+        with contexts.SelectionContext():
+            select_objects(pieces)
+            bpy.ops.object.join()
+    for mesh in meshes:
+        if mesh.users == 0:
+            bpy.data.meshes.remove(mesh)
+    joined.name = name
+    joined.data.name = name
+    return joined
+
+
+def write_exr(filename: str, pixels: np.ndarray) -> None:
+    """Write top down RGBA rows to a lossless 32 bit float EXR."""
+    height, width, _ = pixels.shape
+    name = os.path.basename(filename)
+    image = bpy.data.images.new(name, width, height, alpha=True, float_buffer=True)
+    image.colorspace_settings.name = "Non-Color"
+    # Blender stores image rows bottom up.
+    image.pixels.foreach_set(np.flipud(pixels).ravel())
+    scene = bpy.data.scenes.new(name)
+    settings = scene.render.image_settings
+    settings.file_format = "OPEN_EXR"
+    settings.color_depth = "32"
+    settings.color_mode = "RGBA"
+    settings.exr_codec = "ZIP"
+    try:
+        make_writable(filename)
+        image.save_render(filename, scene=scene)
+    finally:
+        bpy.data.images.remove(image)
+        bpy.data.scenes.remove(scene)
+
+
+def write_png(filename: str, pixels: np.ndarray) -> None:
+    """Write top down rows of values from 0 to 1 to an 8 bit RGBA PNG."""
+    make_writable(filename)
+    with open(filename, "wb") as handle:
+        handle.write(vertex_animation.encode_png(pixels))
+
+
+def export_vertex_animation_texture(
+    objects: list[bpy.types.Object],
+    filename: str,
+    normals: str = vertex_animation.NORMALS_PACKED_IN_ALPHA,
+) -> None:
+    """Export meshes to a GLB and an EXR beside it of their vertices on every frame."""
+    scene = bpy.context.scene
+    frames = range(scene.frame_start, scene.frame_end + 1)
+    current_frame = scene.frame_current
+    positions = []
+    frame_normals = []
+    try:
+        for frame in frames:
+            scene.frame_set(frame)
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            vertices = [read_world_vertices(obj, depsgraph) for obj in objects]
+            positions.append(np.concatenate([position for position, _ in vertices]))
+            frame_normals.append(np.concatenate([normal for _, normal in vertices]))
+            if len(positions[-1]) != len(positions[0]):
+                raise ValueError(f"The vertex count changes on frame {frame}.")
+        scene.frame_set(frames[0])
+        stem = os.path.splitext(filename)[0]
+        texels = vertex_animation.get_vertex_texels(len(positions[0]))
+        base = create_vertex_animation_object(
+            objects,
+            bpy.context.evaluated_depsgraph_get(),
+            texels,
+            os.path.basename(stem),
+        )
+    finally:
+        scene.frame_set(current_frame)
+
+    positions = vertex_animation.to_y_up(np.stack(positions))
+    texture, normal_map = vertex_animation.pack_textures(
+        positions, vertex_animation.to_y_up(np.stack(frame_normals)), normals
+    )
+    base.data["vertex_animation"] = {
+        "frame_count": len(frames),
+        "frames_per_second": scene.render.fps / scene.render.fps_base,
+        "bounds_min": positions.min(axis=(0, 1)).tolist(),
+        "bounds_max": positions.max(axis=(0, 1)).tolist(),
+        "normals": normals.lower(),
+    }
+    mesh = base.data
+    try:
+        write_exr(stem + ".exr", texture)
+        if normal_map is not None:
+            write_png(stem + "_normals.png", normal_map)
+        make_writable(filename)
+        with contexts.SelectionContext():
+            select_objects([base])
+            bpy.ops.export_scene.gltf(
+                filepath=filename,
+                check_existing=False,
+                use_selection=True,
+                use_visible=False,
+                export_format="GLB",
+                export_yup=True,
+                export_animations=False,
+                export_extras=True,
+                export_copyright=f"© {datetime.datetime.now().year} Douglas Lassance",
+            )
+    finally:
+        bpy.data.objects.remove(base)
+        bpy.data.meshes.remove(mesh)

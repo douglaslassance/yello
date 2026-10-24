@@ -43,7 +43,7 @@ The plugin introduces a couple automated event handlers for opening or saving fi
 
 ### Animation
 - **Export Animation**: Export the selection to an animated FBX.
-- **Export Animated Mesh**: Export selected animated meshes to Alembic.
+- **Export Animated Mesh**: Export selected animated meshes to Alembic, or to a vertex animation texture. That is a GLB of the first frame, whose second UV map holds each vertex's texel, and a float EXR with every frame's world space positions. Normals are packed into the EXR's alpha by default, or go in its bottom half, in a separate `_normals.png`, or nowhere.
 - **Export Actions**: Export all actions on the selected armature to GLB, baking deform bone transforms and excluding control rig bones.
 - **Transfer Animation**: Transfer actions to selected armatures using Ollama-based bone matching. Copy rewrites the curves for rigs that share a rest pose, while Bake keys the motion from the source armature and compensates for different bone axes, rotation modes and proportions.
 
